@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../ibek-support/_scripts/support_install_variables.json
+
+# epics-modules/measComp (APS, Mark Rivers; no recipe in upstream ibek-support:
+# ours), pinned at master 9c8e01e (2026-07-13): R4-4 is in its release notes
+# but untagged, and the last tag, R4-3 (2024-02), lacks the poller fix that
+# forces callbacks for averaged analog inputs. No LICENSE file in the repo, as
+# motorAerotech: tier 1 on the org (README "Licence"). Only drvMultiFunction
+# (the multifunction modules: USB-1808X, USB-1608G, E-1608, ...) is built; the
+# USB-CTR scaler/MCS driver and the module's own IOC apps are commented out,
+# so scaler, mca, sscan and the sequencer are not needed. Over MCC's uldaq on
+# Linux (uldaq_task.yml).
+module: measComp
+version: 9c8e01e025258668208383b370061a2b1ba9d7e8
+organization: https://github.com/epics-modules/
+
+dbds:
+  - measCompSupport.dbd
+
+libs:
+  - measComp
+
+apt_developer:
+  - libusb-1.0-0-dev
+  - autoconf
+  - automake
+  - libtool
+
+apt_runtime:
+  - libusb-1.0-0
+
+tasks:
+  - path: uldaq_task.yml
+
+remove_macros:
+  - SCALER
+  - MCA
+  - SSCAN
+  - SNCSEQ
+  - BUSY
+  - CALC
+  - AUTOSAVE
+
+comment_out:
+  # the USB-CTR driver (needs scaler, mca and the sequencer) and every IOC app
+  - path: measCompApp/src/Makefile
+    regexp: USBCTR|seq pv|PROD_IOC|measCompApp|test_|TIn|DaqInScan
+  - path: measCompApp/src/measCompSupport.dbd
+    regexp: USBCTR
+  - path: measCompApp/Makefile
+    regexp: demoSrc
+  - path: Makefile
+    regexp: iocBoot
+
+# libmeasComp.so carries uldaq and libusb itself, with the path to uldaq, so
+# the IOC links it like any other support library.
+patch_blocks:
+  - path: measCompApp/src/Makefile
+    insertafter: "^measComp_LIBS \\+= asyn$"
+    block: |
+      measComp_SYS_LIBS_Linux += uldaq usb-1.0
+      USR_LDFLAGS_Linux += -Wl,-rpath,/usr/local/lib
+
+runtime_files:
+  - /usr/local/lib/libuldaq.so.1
+  - /usr/local/lib/libuldaq.so.1.2.2

@@ -1,0 +1,22 @@
+# MCC's UL for Linux (mccdaq/uldaq, MIT), the library measComp calls on Linux:
+# built from its release tag into /usr/local (headers for measComp's build,
+# libuldaq.so.1 for the runtime stage through runtime_files). Its `make
+# install` also tries to install a udev rule and reload udev, which a
+# container build has no use for and cannot run: the library's own files are
+# checked instead.
+- name: Build the uldaq library
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      rm -rf /tmp/uldaq
+      git clone -b v1.2.2 --depth 1 https://github.com/mccdaq/uldaq /tmp/uldaq
+      cd /tmp/uldaq
+      autoreconf -fi
+      ./configure --prefix=/usr/local --libdir=/usr/local/lib
+      make -j"$(nproc)"
+      make install || true
+      test -f /usr/local/include/uldaq.h
+      test -e /usr/local/lib/libuldaq.so.1
+      ldconfig
+      rm -rf /tmp/uldaq
+    executable: /bin/bash

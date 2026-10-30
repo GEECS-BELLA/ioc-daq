@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://github.com/epics-containers/ibek/releases/download/3.0.1/ibek.support.schema.json
+
+# Measurement Computing multifunction DAQ modules through measComp's
+# drvMultiFunction over uldaq (README "measComp"). One entity per module: the
+# driver and the module's stock database (upstream's <model>.substitutions).
+
+module: measComp
+
+entity_models:
+  - name: MultiFunction
+    description: |-
+      One MCC multifunction module (USB-1808X, USB-1608G, E-1608, ...) as an
+      asyn port with upstream's records for its model: analog in and out,
+      digital I/O and direction, counters, pulse generators, the waveform
+      digitizer and generator. What a start sends: README "What the driver
+      sends at start".
+    parameters:
+      name:
+        type: id
+        description: |-
+          The asyn port name
+      unique_id:
+        type: str
+        description: |-
+          The module's serial number for USB (lsusb's iSerial, e.g. 01E87A66);
+          its MAC or IP address for Ethernet
+      P:
+        type: str
+        description: |-
+          PV prefix, with its trailing colon
+      model:
+        type: str
+        description: |-
+          The upstream substitutions file, without its extension: USB1808 for
+          the USB-1808 and USB-1808X, USB1608G, E1608, ... ($(MEASCOMP)/db)
+      wdig_points:
+        type: int
+        description: |-
+          Waveform digitizer points per channel (upstream's examples: 1048576;
+          the arrays are allocated whether the digitizer runs or not)
+        default: 16384
+      wgen_points:
+        type: int
+        description: |-
+          Waveform generator points per channel
+        default: 16384
+      outputs_pini:
+        type: enum
+        description: |-
+          PINI of the analog and binary output records. YES (upstream) writes
+          each output's value (0, or what autosave restored) at iocInit; NO
+          leaves the outputs as the module holds them until a put (the records
+          then show 0 until written: uldaq has no output readback). The macro
+          is passed only for NO, so the port-wide longout keeps upstream's NO
+        default: "YES"
+        values:
+          "YES":
+          "NO":
+
+    pre_init:
+      - value: |
+          # MultiFunctionConfig(portName, uniqueID, maxInputPoints, maxOutputPoints)
+          MultiFunctionConfig("{{name}}", "{{unique_id}}", {{wdig_points}}, {{wgen_points}})
+          dbLoadTemplate("/epics/support/measComp/db/{{model}}.substitutions", "P={{P}},PORT={{name}},WDIG_POINTS={{wdig_points}},WGEN_POINTS={{wgen_points}}{% if outputs_pini == 'NO' %},PINI=NO{% endif %}")
+
+    # The time arrays are I/O Intr and asynPortDriver does no array callbacks
+    # before iocInit (upstream's st.cmd)
+    post_init:
+      - value: |
+          dbpf {{P}}WaveDigDwell.PROC 1
+          dbpf {{P}}WaveGenUserDwell.PROC 1
