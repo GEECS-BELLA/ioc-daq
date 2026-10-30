@@ -31,8 +31,11 @@ entity_models:
       model:
         type: str
         description: |-
-          The upstream substitutions file, without its extension: USB1808 for
-          the USB-1808 and USB-1808X, USB1608G, E1608, ... ($(MEASCOMP)/db)
+          The module's upstream substitutions file, without its extension:
+          USB1808 for the USB-1808 and USB-1808X, USB1608G, E1608, ...
+          ($(MEASCOMP)/db). It also selects the post-init lines (the
+          waveform digitizer and generator records exist only for some
+          models). Not USBCTR: the USB-CTR driver is not built
       substitutions:
         type: str
         description: |-
@@ -56,11 +59,13 @@ entity_models:
       outputs_pini:
         type: enum
         description: |-
-          PINI of the analog and binary output records. YES (upstream) writes
-          each output's value (0, or what autosave restored) at iocInit; NO
-          leaves the outputs as the module holds them until a put (the records
-          then show 0 until written: uldaq has no output readback). The macro
-          is passed only for NO, so the port-wide longout keeps upstream's NO
+          PINI of the analog output values (Ao*) and the binary outputs (Bo*).
+          YES (upstream) writes each value (0) at iocInit; NO leaves the analog
+          outputs as the module holds them until a put (the records read 0
+          until written: uldaq has no output readback). Either way the DIO
+          direction records (Bd*, PINI YES, VAL 0) set every DIO bit to input
+          at each start, releasing any digital output. The macro is passed
+          only for NO, so the port-wide longout keeps upstream's NO
         default: "YES"
         values:
           "YES":
@@ -74,7 +79,8 @@ entity_models:
 
     # The time arrays are I/O Intr and asynPortDriver does no array callbacks
     # before iocInit (upstream's st.cmd)
+    # (only for the models whose upstream substitutions load them)
     post_init:
       - value: |
-          dbpf {{P}}WaveDigDwell.PROC 1
-          dbpf {{P}}WaveGenUserDwell.PROC 1
+          {% if model in ['USB1808', 'USB1608G', 'USB1608G_2AO', 'USB1608HS_2AO', 'USB2408', 'E1608'] %}dbpf {{P}}WaveDigDwell.PROC 1{% endif %}
+          {% if model in ['USB1808', 'USB1608G_2AO', 'USB1608HS_2AO', 'USB2408'] %}dbpf {{P}}WaveGenUserDwell.PROC 1{% endif %}

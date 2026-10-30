@@ -31,19 +31,20 @@ apt_runtime:
 tasks:
   - path: uldaq_task.yml
 
+# measComp's configure/RELEASE names these; none is built here (busy, calc
+# and autosave are, so the global RELEASE already defines them)
 remove_macros:
   - SCALER
   - MCA
   - SSCAN
   - SNCSEQ
-  - BUSY
-  - CALC
-  - AUTOSAVE
 
 comment_out:
-  # the USB-CTR driver (needs scaler, mca and the sequencer) and every IOC app
+  # the USB-CTR driver (needs scaler, mca and the sequencer) and every IOC
+  # app and test program, except test_measCompDiscover: it lists the modules
+  # on the bus with their serial numbers (the entity's unique_id)
   - path: measCompApp/src/Makefile
-    regexp: USBCTR|seq pv|PROD_IOC|measCompApp|test_|TIn|DaqInScan
+    regexp: USBCTR|seq pv|PROD_IOC(?!.*test_measCompDiscover)|measCompApp|TIn|DaqInScan
   - path: measCompApp/src/measCompSupport.dbd
     regexp: USBCTR
   - path: measCompApp/Makefile

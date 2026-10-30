@@ -8,8 +8,9 @@ only) over MCC's open uldaq library from our recipe in
 
 - **Instances** live in GEECS-BELLA/geecs-epics, not here: `daqtest1`
   (USB-1808X, `services/undulator/daq/daqtest1`, profile `bench-daq`).
-  Records come from upstream's `<model>.substitutions`, loaded by the
-  `measComp.MultiFunction` entity.
+  Records come from the `measComp.MultiFunction` entity: upstream's
+  `<model>.substitutions`, or the instance's own file (`substitutions`;
+  the USB-1808's needs one, README "The entity").
 - **Why ours.** No epics-containers image or ibek-support recipe carries
   measComp (checked 2026-10-30). uldaq is MIT and built from source here, so
   the image may be published (no decision 12 restriction). A LabJack driver,
@@ -19,8 +20,9 @@ only) over MCC's open uldaq library from our recipe in
   `-developer`, both made public once after the first tag. A pre-release tag
   (`2026.10.1b1`) for bench work from a branch. A local build:
   `DOCKER_DEFAULT_PLATFORM=linux/amd64 TARGET=runtime TAG=ioc-daq:local ./build`.
-- **Pins.** geecs-epics' compose files pin the tag; a bump is a tag here and
-  one line there, then `pull <service>` and recreate on the host.
+- **Pins.** geecs-epics' compose files pin the tag (from the first tag on;
+  before it, the bench ran a host build); a bump is a tag here and one line
+  there, then `pull <service>` and recreate on the host.
 - **Merging**: after a fresh-context review dispositioned on the PR, and the
   bench proof for anything that changes what reaches a device. Rules and
   program state: geecs-epics `CLAUDE.md`.
