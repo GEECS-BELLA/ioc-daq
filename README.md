@@ -12,7 +12,7 @@ pvlogging and autosave, plus:
 | busy | R1-7-4 | upstream ibek-support recipe (record type used by measComp's databases) | tier 1, dependency |
 | calc | R3-7-5 | upstream ibek-support recipe (calcout records in measComp's databases) | tier 1, dependency |
 | measComp | master 9c8e01e (2026-07-13) | [epics-modules/measComp](https://github.com/epics-modules/measComp) (APS, Mark Rivers), our recipe `ibek-support-geecs/measComp/` | tier 1, dependency; no LICENSE file (below) |
-| uldaq | v1.2.2 | [mccdaq/uldaq](https://github.com/mccdaq/uldaq), MCC's UL for Linux, MIT, built from source by the measComp recipe | vendor, open source |
+| uldaq | v1.2.2 (f87594f; it reports itself as 1.2.0, the IOC's `ULVersion`) | [mccdaq/uldaq](https://github.com/mccdaq/uldaq), MCC's UL for Linux, MIT, built from source by the measComp recipe | vendor, open source |
 
 No epics-containers image or ibek-support recipe carries measComp (checked
 2026-10-30, GitHub code search included), hence this one. First device: an
@@ -29,7 +29,8 @@ MCC USB-1808X (geecs-epics `services/undulator/daq/daqtest1`).
   USB-TEMP, ...) and `measCompDiscover`. The recipe comments out the USB-CTR
   scaler/MCS driver and its SNL program (they need scaler, mca and the
   sequencer), measComp's own IOC applications and test programs, and the
-  demo and iocBoot directories. Nothing in the driver is patched.
+  demo and iocBoot directories; `test_measCompDiscover` is kept. Nothing in
+  the driver is patched.
   `libmeasComp.so` links uldaq and libusb itself, with an rpath to
   `/usr/local/lib`, so the IOC links it like any other support library.
 - **USB-1808X.** The driver treats the 1808X as the USB-1808 board family
@@ -45,11 +46,33 @@ MCC USB-1808X (geecs-epics `services/undulator/daq/daqtest1`).
 `measComp.MultiFunction` (`ibek-support-geecs/measComp/measComp.ibek.support.yaml`):
 `MultiFunctionConfig(name, unique_id, wdig_points, wgen_points)` and
 `dbLoadTemplate` of upstream's `<model>.substitutions` with `P`, `PORT`,
-`WDIG_POINTS`, `WGEN_POINTS`; after iocInit, upstream's two `dbpf ...Dwell.PROC`
-lines. `unique_id` is the USB serial number (`lsusb -v`'s `iSerial`).
+`WDIG_POINTS`, `WGEN_POINTS`. After iocInit come upstream's `dbpf
+WaveDigDwell.PROC` and `WaveGenUserDwell.PROC` lines, each only for the
+models whose substitutions load those records. `model: USBCTR` cannot
+work: the USB-CTR driver is not built. `test_measCompDiscover`
+(`/epics/support/measComp/bin/linux-x86_64/`) lists the modules on the bus
+with their serial numbers. `unique_id` is the USB serial number (`lsusb -v`'s `iSerial`).
 `wdig_points` and `wgen_points` default to 16384, not upstream's 1048576:
 the arrays are allocated whether the digitizer runs or not, and GEECS uses
 these modules for slow I/O.
+
+`substitutions` replaces upstream's file with one of the instance's own.
+Use one for the USB-1808 and 1808X. Upstream's `USB1808.substitutions` (at
+9c8e01e) gives Ai1-Ai8 the USB-1608G's range table: RANGE 3/2/1/0 with EGU
+±10/±5/±2/±1 V. On the 1808 those indices mean 0-5 V, 0-10 V, ±5 V and
+±10 V (`inputRangeUSB_1808`), so every input is scaled wrong; on the bench
+Ai7 and Ai8 read 10× small. geecs-epics' `daqtest1.substitutions` is the
+corrected copy. The `ai` records convert raw counts with EGUL/EGUF, so a
+Range change at runtime needs matching EGU limits. That is a candidate to
+report upstream.
+
+Upstream's analog-output template also loads `AoNSyncMaster`/`SyncEnable`
+with PINI. R4-4's synchronous DAC update supports only the USB-31xx, so on
+the 1808X the start prints "Setting analog out master, err=24
+Configuration not supported" for each channel. It is harmless and also a
+candidate for upstream. These records read UDF (INVALID) until written, as
+every `bo` with no VAL does (`Bo1`-`Bo4`, `AoNPulse`, `AoNSyncEnable`, ...);
+that comes from the template, not from the error.
 
 ## What the driver sends at start
 
@@ -59,19 +82,31 @@ From measComp 9c8e01e's `drvMultiFunction.cpp` and its templates:
    reads its identity and capabilities. It starts the poller, which reads
    the analog inputs, digital inputs and counters every `PollSleepMS` (50 ms).
 2. At iocInit, the records with `PINI YES` write. In upstream's templates
-   those are the analog output values (`ao`, `$(PINI=YES)`), the binary
-   outputs (`bo`, `$(PINI=YES)`), the digital direction bits
-   (`measCompBinaryDir`, VAL 0 = input), the analog-input modes and ranges,
-   the analog-output ranges and sync bits, the trigger mode, the pulse
-   generators' settings (not their run state) and `PollSleepMS`. With no
-   autosave, every analog output is driven to 0 V and every DIO bit is set
-   to input at each start.
-3. `outputs_pini: "NO"` on the entity passes `PINI=NO` to
-   `dbLoadTemplate`. That leaves the analog and binary output values alone
-   at start. The directions and ranges are still written, and the records
-   read 0 until written, because uldaq has no readback of an output. A
-   production instance whose outputs drive something chooses this
-   deliberately (or keeps autosave).
+   those are:
+   - the analog output values (`ao`, `$(PINI=YES)`) and the binary outputs
+     (`bo`, `$(PINI=YES)`);
+   - the digital direction bits (`measCompBinaryDir`, VAL 0 = input);
+   - the counter and encoder resets (`CounterNReset`, `EncoderNReset`,
+     VAL 1: `ulCLoad(..., 0)`), so **counts restart from 0 at each IOC
+     start**;
+   - the analog-input mode, ranges, types and rates;
+   - the analog-output ranges and sync bits;
+   - the trigger mode;
+   - the pulse generators' settings (their `Run` is PINI too, but a stopped
+     generator sends nothing);
+   - the waveform digitizer's and generator's settings;
+   - `PollSleepMS`.
+
+   This image wires no autosave for measComp's records. So at each start
+   every analog output is driven to 0 V and every DIO bit is set to input.
+3. `outputs_pini: "NO"` on the entity passes `PINI=NO` to `dbLoadTemplate`.
+   That leaves the analog output values alone at start: their records read 0
+   until written, because uldaq has no readback of an output. Every DIO bit
+   is still set to input by the direction records, which releases any
+   digital output, and the ranges and counter resets are still written. A
+   production instance whose outputs drive something needs its own
+   substitutions (no PINI on `Bd*`, or the right VAL) and a decision on the
+   resets.
 
 ### Testing without hardware
 
