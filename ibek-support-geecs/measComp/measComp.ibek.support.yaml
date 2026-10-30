@@ -33,6 +33,15 @@ entity_models:
         description: |-
           The upstream substitutions file, without its extension: USB1808 for
           the USB-1808 and USB-1808X, USB1608G, E1608, ... ($(MEASCOMP)/db)
+      substitutions:
+        type: str
+        description: |-
+          A substitutions file of the instance's own (a path in the container,
+          e.g. /epics/ioc/config/<ioc>.substitutions) to load instead of
+          upstream's <model>.substitutions; empty: upstream's. Upstream's
+          USB1808.substitutions scales its analog inputs with the USB-1608G's
+          range table (README "The entity")
+        default: ""
       wdig_points:
         type: int
         description: |-
@@ -61,7 +70,7 @@ entity_models:
       - value: |
           # MultiFunctionConfig(portName, uniqueID, maxInputPoints, maxOutputPoints)
           MultiFunctionConfig("{{name}}", "{{unique_id}}", {{wdig_points}}, {{wgen_points}})
-          dbLoadTemplate("/epics/support/measComp/db/{{model}}.substitutions", "P={{P}},PORT={{name}},WDIG_POINTS={{wdig_points}},WGEN_POINTS={{wgen_points}}{% if outputs_pini == 'NO' %},PINI=NO{% endif %}")
+          dbLoadTemplate("{{substitutions or '/epics/support/measComp/db/' ~ model ~ '.substitutions'}}", "P={{P}},PORT={{name}},WDIG_POINTS={{wdig_points}},WGEN_POINTS={{wgen_points}}{% if outputs_pini == 'NO' %},PINI=NO{% endif %}")
 
     # The time arrays are I/O Intr and asynPortDriver does no array callbacks
     # before iocInit (upstream's st.cmd)

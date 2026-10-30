@@ -51,6 +51,22 @@ lines. `unique_id` is the USB serial number (`lsusb -v`'s `iSerial`).
 the arrays are allocated whether the digitizer runs or not, and GEECS uses
 these modules for slow I/O.
 
+`substitutions` replaces upstream's file with one of the instance's own.
+Use one for the USB-1808 and 1808X. Upstream's `USB1808.substitutions` (at
+9c8e01e) gives Ai1-Ai8 the USB-1608G's range table: RANGE 3/2/1/0 with EGU
+±10/±5/±2/±1 V. On the 1808 those indices mean 0-5 V, 0-10 V, ±5 V and
+±10 V (`inputRangeUSB_1808`), so every input is scaled wrong; on the bench
+Ai7 and Ai8 read 10× small. geecs-epics' `daqtest1.substitutions` is the
+corrected copy. The `ai` records convert raw counts with EGUL/EGUF, so a
+Range change at runtime needs matching EGU limits. That is a candidate to
+report upstream.
+
+Upstream's analog-output template also loads `AoNSyncMaster`/`SyncEnable`
+with PINI. R4-4's synchronous DAC update supports only the USB-31xx, so on
+the 1808X the start prints "Setting analog out master, err=24
+Configuration not supported" for each channel and the two records sit in
+an alarm. It is harmless and also a candidate for upstream.
+
 ## What the driver sends at start
 
 From measComp 9c8e01e's `drvMultiFunction.cpp` and its templates:
