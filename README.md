@@ -58,9 +58,10 @@ these modules for slow I/O.
 
 `substitutions` replaces upstream's file with one of the instance's own.
 Use one for the USB-1808 and 1808X. Upstream's `USB1808.substitutions` (at
-9c8e01e) gives Ai1-Ai8 the USB-1608G's range table: RANGE 3/2/1/0 with EGU
-±10/±5/±2/±1 V. On the 1808 those indices mean 0-5 V, 0-10 V, ±5 V and
-±10 V (`inputRangeUSB_1808`), so every input is scaled wrong; on the bench
+9c8e01e) gives Ai1-Ai8 rows copied from `USB1608G.substitutions`: RANGE
+3/2/1/0 with EGU ±10/±5/±2/±1 V, which match neither model's enum (the
+1608G's starts at ±10 V too). On the 1808 those indices mean 0-5 V, 0-10 V,
+±5 V and ±10 V (`inputRangeUSB_1808`), so every input is scaled wrong; on the bench
 Ai7 and Ai8 read 10× small. geecs-epics' `daqtest1.substitutions` is the
 corrected copy. The `ai` records convert raw counts with EGUL/EGUF, so a
 Range change at runtime needs matching EGU limits. That is a candidate to
