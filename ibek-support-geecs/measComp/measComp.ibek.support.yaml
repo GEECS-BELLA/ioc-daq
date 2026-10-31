@@ -42,8 +42,9 @@ entity_models:
           A substitutions file of the instance's own (a path in the container,
           e.g. /epics/ioc/config/<ioc>.substitutions) to load instead of
           upstream's <model>.substitutions; empty: upstream's. Upstream's
-          USB1808.substitutions scales its analog inputs with the USB-1608G's
-          range table (README "The entity")
+          USB1808.substitutions carries AI rows copied from
+          USB1608G.substitutions, whose RANGE indices match neither model's
+          enum (README "The entity")
         default: ""
       wdig_points:
         type: int
