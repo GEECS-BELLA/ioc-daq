@@ -1,7 +1,7 @@
-# The USB-6210: every record, by measComp's names. Macros: P, PORT, MAX_POINTS, DB (the templates' folder; from the entity).
-file "$(DB)/niusbDevice.template" { pattern {} {} }
+# The USB-6210: every record, by measComp's names. Macros: P, PORT, MAX_POINTS (from the entity); the templates at the image's /epics/support/niusb/db.
+file "/epics/support/niusb/db/niusbDevice.template" { pattern {} {} }
 
-file "$(DB)/niusbAi.template"
+file "/epics/support/niusb/db/niusbAi.template"
 {
 pattern
 { N, ADDR }
@@ -23,7 +23,7 @@ pattern
 { 16, 15 }
 }
 
-file "$(DB)/niusbBi.template"
+file "/epics/support/niusb/db/niusbBi.template"
 {
 pattern
 { N, MASK }
@@ -33,7 +33,7 @@ pattern
 { 4, 0x8 }
 }
 
-file "$(DB)/niusbBo.template"
+file "/epics/support/niusb/db/niusbBo.template"
 {
 pattern
 { N, MASK }
@@ -43,9 +43,9 @@ pattern
 { 4, 0x8 }
 }
 
-file "$(DB)/niusbWaveDig.template" { pattern {} {} }
+file "/epics/support/niusb/db/niusbWaveDig.template" { pattern {} {} }
 
-file "$(DB)/niusbWaveDigN.template"
+file "/epics/support/niusb/db/niusbWaveDigN.template"
 {
 pattern
 { N, ADDR }

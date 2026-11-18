@@ -57,4 +57,4 @@ entity_models:
       - value: |
           # niUsb621xConfig(port, serial, fwDir, simulate, maxPoints)
           niUsb621xConfig("{{name}}", "{{serial}}", "{{fw_dir}}", "{% if simulate %}{{ 'USB-6210' if model == 'USB6210' else 'USB-6211' }}{% endif %}", {{max_points}})
-          dbLoadTemplate("/epics/support/niusb/db/{{model}}.substitutions", "P={{P}},PORT={{name}},MAX_POINTS={{max_points}},DB=/epics/support/niusb/db")
+          dbLoadTemplate("/epics/support/niusb/db/{{model}}.substitutions", "P={{P}},PORT={{name}},MAX_POINTS={{max_points}}")
