@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
@@ -36,12 +38,21 @@ namespace {
 /* An exclusive flock held for a scope; a path that cannot be opened is no lock. */
 struct FileLock {
     int fd = -1;
+    std::string problem;
     explicit FileLock(const std::string &path)
     {
         if (path.empty())
             return;
         fd = ::open(path.c_str(), O_RDONLY);
-        if (fd >= 0 && ::flock(fd, LOCK_EX) != 0) {
+        if (fd < 0) {
+            problem = "cannot open " + path + " to lock the blank-unit load: " + std::strerror(errno);
+            return;
+        }
+        int rc;
+        while ((rc = ::flock(fd, LOCK_EX)) != 0 && errno == EINTR) {
+        }
+        if (rc != 0) {
+            problem = "cannot lock " + path + " for the blank-unit load: " + std::strerror(errno);
             ::close(fd);
             fd = -1;
         }
@@ -60,6 +71,7 @@ void Device::open()
 {
     close();
     fresh_ = false;
+    lockProblem.clear();
     try {
         openUnlocked();
     } catch (...) {
@@ -71,6 +83,19 @@ void Device::open()
 void Device::openUnlocked()
 {
     std::vector<UnitInfo> units = bus_.list();
+    std::vector<UnitInfo> blanks;  // places seen blank in this open
+    auto noteBlanks = [&] {
+        for (const UnitInfo &u : units)
+            if (u.pid == PID_BLANK)
+                blanks.push_back(u);
+    };
+    auto wasBlank = [&](const UnitInfo &u) {
+        for (const UnitInfo &b : blanks)
+            if (b.samePlace(u))
+                return true;
+        return false;
+    };
+    noteBlanks();
     for (const UnitInfo &u : units)
         if (modelByPid(u.pid) && (want_.empty() || u.serial == want_)) {
             attach(u, false);
@@ -84,10 +109,13 @@ void Device::openUnlocked()
     // Load blank units under the host-wide lock, listing again once held:
     // another IOC may have loaded one meanwhile (perhaps ours).
     FileLock lock(loadLock);
+    lockProblem = lock.problem;
     units = bus_.list();
+    noteBlanks();
     for (const UnitInfo &u : units)
         if (modelByPid(u.pid) && (want_.empty() || u.serial == want_)) {
-            attach(u, false);
+            attach(u, false);  // another IOC loaded it while this one waited
+            fresh_ = wasBlank(u);
             return;
         }
     std::string seen;

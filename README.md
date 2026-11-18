@@ -144,9 +144,11 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   blank unit has no serial: the driver loads blank units one by one until
   its own appears; the others stay loaded, ready for their own IOCs. The
   loading runs under an exclusive `flock` on `fw_dir`, which every NI IOC
-  on the host mounts, and the bus is listed again once the lock is held,
-  so two IOCs starting together never load one unit at once (on the fake;
-  the bench proof with two IOCs is owed).
+  on the host mounts from the same host folder (a lock on another copy
+  locks nothing), and the bus is listed again once the lock is held, so
+  two IOCs starting together never load one unit at once (on the fake; the
+  bench proof with two IOCs is owed). A lock that cannot be taken is
+  logged as a warning and the load goes ahead.
 - **Records** (measComp's record names only: not its drvInfo strings, its
   full record sets or its screens; `Db/USB6211.substitutions`):
   `Ai1`-`Ai16` (on demand, `SCAN` 1 s; `Ai<n>Range`, `Ai<n>Mode` RSE/NRSE/
@@ -158,8 +160,10 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   clock with `DwellActual`, `Range`, `Mode`, `Run`; arrays `WaveDig1`-`16`
   and `WaveDigTimeWF`), and `Model`, `SerialNumber`, `Connected`,
   `LastError`, `Firmware`. After each open the driver takes P1's state from
-  the unit, so a write to one `Bo` keeps the other lines as they are; after
-  a load from blank (the unit lost power) `Ao*` read 0, as the unit does.
+  the unit, so a write to one `Bo` keeps the other lines as they are; when
+  the IOC saw its unit blank during the open (it lost power; this IOC or
+  another loaded it) `Ao*` read 0, as the unit does. If another IOC loaded
+  it before this one listed the bus, `Ao*` keep their last setpoint.
 - **WaveDig limits.** The 621x samples 250 kS/s in all: `NumChans` /
   `Dwell` above that is refused. A scan holds the port's thread for its
   whole length, the other records waiting, so a scan longer than 30 s is

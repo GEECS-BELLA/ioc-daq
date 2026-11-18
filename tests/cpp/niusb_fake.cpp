@@ -135,6 +135,33 @@ int main()
     locked.open();
     check("blank-load-under-lock", b3->loaded && locked.freshlyLoaded());
 
+    // Another IOC loads the unit while this one waits: still fresh.
+    FakeBus bus4;
+    auto b4 = bus4.add(0x7270, "RACE", false);
+    struct RacingBus : public Bus {
+        FakeBus &inner;
+        Firmware &fw;
+        int lists = 0;
+        RacingBus(FakeBus &b, Firmware &f) : inner(b), fw(f) {}
+        std::vector<UnitInfo> list() override
+        {
+            if (++lists == 2) {  // after the first listing: the other IOC loads it
+                Device other(inner, "", &fw);
+                other.open();
+            }
+            return inner.list();
+        }
+        std::unique_ptr<Transport> open(const UnitInfo &u) override { return inner.open(u); }
+        void sleep(double) override {}
+    } racing(bus4, fw);
+    Device late(racing, "RACE", &fw);
+    late.open();
+    check("fresh-when-another-ioc-loaded-it", late.freshlyLoaded() && b4->renumerations == 1);
+    Device badLock(bus3, "LOCKED", &fw);
+    badLock.loadLock = "/nonexistent/fw";
+    badLock.open();
+    check("lock-problem-reported-only-when-loading", badLock.lockProblem.empty());
+
     std::cout << (failures ? "FAILED" : "PASSED") << "\n";
     return failures ? 1 : 0;
 }

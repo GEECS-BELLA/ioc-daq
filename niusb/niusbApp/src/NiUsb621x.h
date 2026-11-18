@@ -25,6 +25,9 @@ public:
      * blank-unit load runs under an exclusive flock on it, so two IOCs
      * starting together never load one unit at once. "" for none. */
     std::string loadLock;
+    /* Set when the last open loaded a blank unit without the lock (the
+     * path could not be opened or locked): for the IOC to report. */
+    std::string lockProblem;
     /* The 621x's aggregate AI rate, samples/s. */
     static constexpr double MAX_AI_RATE = 250e3;
 
@@ -34,8 +37,10 @@ public:
     void open();
     void close();
     bool isOpen() const { return t_ != nullptr; }
-    /* The last open loaded the unit from blank (it had lost power): its
-     * outputs are at their power-up state (AO 0 V, P1 low). */
+    /* The unit was blank during the last open (it had lost power; this IOC
+     * or another loaded it): its outputs are at their power-up state (AO
+     * 0 V, P1 low). Not seen if another IOC loaded it before this one
+     * listed the bus. */
     bool freshlyLoaded() const { return fresh_; }
 
     const Model &model() const;

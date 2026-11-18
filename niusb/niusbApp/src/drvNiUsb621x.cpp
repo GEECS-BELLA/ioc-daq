@@ -167,6 +167,8 @@ bool drvNiUsb621x::ready(asynUser *u)
     lastTry_ = now;
     try {
         dev_->open();
+        if (!dev_->lockProblem.empty())
+            errlogPrintf("%s: warning: %s\n", portName, dev_->lockProblem.c_str());
         opened();
         setStringParam(pModel, dev_->model().name);
         setStringParam(pSerial, dev_->serial());
