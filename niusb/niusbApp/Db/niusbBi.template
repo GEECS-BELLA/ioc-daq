@@ -1,0 +1,10 @@
+# One digital input of P0 (MASK 0x1, 0x2, 0x4, 0x8), as measComp's Bi records.
+# P, PORT, N, LINE (N - 1), MASK; optional SCAN
+record(bi, "$(P)Bi$(N)") {
+    field(DESC, "P0.$(LINE) input")
+    field(DTYP, "asynUInt32Digital")
+    field(INP,  "@asynMask($(PORT),0,$(MASK),2)DI")
+    field(SCAN, "$(SCAN=1 second)")
+    field(ZNAM, "Low")
+    field(ONAM, "High")
+}

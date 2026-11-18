@@ -25,3 +25,5 @@ ioc/configure/CONFIG_SITE.Common.linux-x86_64
 
 **/.ansible
 **/*build.log
+tests/cpp/build/
+**/__pycache__/

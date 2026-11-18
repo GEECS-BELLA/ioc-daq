@@ -1,0 +1,49 @@
+# One analog input, read on demand: Ai$(N) is channel ADDR (N = ADDR + 1, measComp's naming).
+# P, PORT, N, ADDR; optional SCAN, PREC, RANGE (0 +-10 V, 1 +-5, 2 +-1, 3 +-0.2), MODE (0 RSE, 1 NRSE, 2 DIFF)
+record(ai, "$(P)Ai$(N)") {
+    field(DESC, "AI$(ADDR)")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),10)AI_VALUE")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PREC, "$(PREC=4)")
+    field(EGU,  "V")
+    field(HOPR, "10")
+    field(LOPR, "-10")
+}
+record(mbbo, "$(P)Ai$(N)Range") {
+    field(DESC, "AI$(ADDR) range")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_RANGE")
+    field(ZRST, "+-10V")
+    field(ZRVL, "0")
+    field(ONST, "+-5V")
+    field(ONVL, "1")
+    field(TWST, "+-1V")
+    field(TWVL, "2")
+    field(THST, "+-0.2V")
+    field(THVL, "3")
+    field(VAL,  "$(RANGE=0)")
+    field(PINI, "YES")
+}
+record(mbbo, "$(P)Ai$(N)Mode") {
+    field(DESC, "AI$(ADDR) terminal mode")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_MODE")
+    field(ZRST, "RSE")
+    field(ZRVL, "0")
+    field(ONST, "NRSE")
+    field(ONVL, "1")
+    field(TWST, "DIFF")
+    field(TWVL, "2")
+    field(VAL,  "$(MODE=0)")
+    field(PINI, "YES")
+}
+record(longout, "$(P)Ai$(N)Average") {
+    field(DESC, "AI$(ADDR) samples per read")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_AVERAGE")
+    field(VAL,  "1")
+    field(DRVL, "1")
+    field(DRVH, "100")
+    field(PINI, "YES")
+}

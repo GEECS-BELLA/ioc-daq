@@ -13,6 +13,7 @@ pvlogging and autosave, plus:
 | calc | R3-7-5 | upstream ibek-support recipe (calcout records in measComp's databases) | tier 1, dependency |
 | measComp | master 9c8e01e (2026-07-13) | [epics-modules/measComp](https://github.com/epics-modules/measComp) (APS, Mark Rivers), our recipe `ibek-support-geecs/measComp/` | tier 1, dependency; no LICENSE file (below) |
 | uldaq | v1.2.2 (f87594f; it reports itself as 1.2.0, the IOC's `ULVersion`) | [mccdaq/uldaq](https://github.com/mccdaq/uldaq), MCC's UL for Linux, MIT, built from source by the measComp recipe | vendor, open source |
+| niusb | this repository (`niusb/`, recipe `ibek-support-geecs/niusb/`) | ours: NI USB-621x over libusb-1.0, from our decoding of the USB protocol; no NI code | written |
 
 No epics-containers image or ibek-support recipe carries measComp (checked
 2026-10-30, GitHub code search included), hence this one. First device: an
@@ -111,8 +112,84 @@ From measComp 9c8e01e's `drvMultiFunction.cpp` and its templates:
 
 ### Testing without hardware
 
-None yet: measComp has no simulation mode, and decision 13's fake for this
-family is open in geecs-epics (`docs/device-catalogue.md`).
+measComp: none yet (measComp has no simulation mode). niusb: the entity's
+`simulate: true` runs the unit on the driver's fake ("NI USB-621x" below),
+and the CI instance (`tests/config/ioc.yaml`) checks its loopbacks.
+
+## NI USB-621x
+
+The USB-6211 and USB-6210 (GEECS's `DaqPad_NI6009` devices) on our own
+driver, `niusb`: no NI-DAQmx, no NI library. The protocol was decoded from
+USB captures of NI-DAQmx 20 driving a USB-6211; the Python reference
+(`python/ni62xx.py`) ran a USB-6211 and a USB-6210 from Linux (on-demand
+and timed AI against loopbacks, AO within a millivolt, DI/DO), and the C++
+driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
+
+- **Power-up.** A 621x enumerates blank (`3923:7269`, an FX2 with no
+  firmware) and takes, over USB, a loader, its 8051 firmware and two FPGA
+  bitstreams, after which it comes back as its model (`3923:7270` the
+  6211, `3923:726F` the 6210). The driver does this whenever it finds a
+  blank unit, then reads the unit's EEPROM: the self-calibration of each
+  AI range and, on the 6211, of AO0 and AO1 (both measured against a
+  loopback on the bench).
+- **NI's firmware is not here** (geecs-epics decision 23). It is five files
+  of an NI-DAQmx install (`NI-DAQ\fpgaFiles\miousb\`): `usb621x.cfg`,
+  `usb621x0.cfg`, `usb621x1.cfg`, `SlicFpga.cfg`, `STC3Lite.cfg`, copied
+  from a lab PC to the host and mounted read-only at `fw_dir`
+  (`/opt/ni-firmware`). Each is checked against the SHA-256 of the NI-DAQmx
+  20 file (`NiUsbFirmware.cpp`); a differing file is refused by name, in
+  the `Firmware` record. A unit already loaded (the IOC restarted, the unit
+  powered throughout) needs no firmware.
+- **Several units.** `serial` picks one (lsusb's `iSerial` once loaded). A
+  blank unit has no serial: the driver loads blank units one by one until
+  its own appears; the others stay loaded, ready for their own IOCs. The
+  loading runs under an exclusive `flock` on `fw_dir`, which every NI IOC
+  on the host mounts from the same host folder (a lock on another copy
+  locks nothing), and the bus is listed again once the lock is held, so
+  two IOCs starting together never load one unit at once (on the fake; the
+  bench proof with two IOCs is owed). A lock that cannot be taken is
+  logged as a warning and the load goes ahead.
+- **Records** (measComp's record names only: not its drvInfo strings, its
+  full record sets or its screens; `Db/USB6211.substitutions`):
+  `Ai1`-`Ai16` (on demand, `SCAN` 1 s; `Ai<n>Range`, `Ai<n>Mode` RSE/NRSE/
+  DIFF, `Ai<n>Average`), `Ao1`-`Ao2` (6211; no readback exists, so the
+  record reads 0 until written; `PINI` NO: an IOC start leaves the outputs
+  as they are), `Bi1`-`Bi4` (P0.0-3), `Bo1`-`Bo4` (P1.0-3, `PINI` NO) with
+  `Bo<n>_RBV` (the unit's readback), the `WaveDig` finite timed scan
+  (`WaveDigNumPoints`, `FirstChan`, `NumChans`, `Dwell` on the 20 MHz
+  clock with `DwellActual`, `Range`, `Mode`, `Run`; arrays `WaveDig1`-`16`
+  and `WaveDigTimeWF`), and `Model`, `SerialNumber`, `Connected`,
+  `LastError`, `Firmware`. After each open the driver takes P1's state from
+  the unit, so a write to one `Bo` keeps the other lines as they are; when
+  the IOC saw its unit blank during the open (it lost power; this IOC or
+  another loaded it) `Ao*` read 0, as the unit does. If another IOC loaded
+  it before this one listed the bus, `Ao*` keep their last setpoint.
+- **WaveDig limits.** The 621x samples 250 kS/s in all: `NumChans` /
+  `Dwell` above that is refused. A scan holds the port's thread for its
+  whole length, the other records waiting, so a scan longer than 30 s is
+  refused. `WaveDigRun` returns to Done either way; after a scan that did
+  not run, `WaveDigOK` is Failed (MAJOR), the arrays are unchanged and the
+  reason is in `LastError`.
+- **Reconnects.** A USB error closes the unit; the next request reopens
+  it, at most every 5 s, loading the firmware again if the unit came back
+  blank. Records read INVALID meanwhile.
+- **Not done:** continuous (streaming) AI, hardware triggers and PFI
+  routing, counters, timed AO, the other 621x models (6212, 6215, 6216,
+  6218: a line in the model table once a unit is in hand), the USB-6008/
+  6009 (a different protocol family).
+- **Tests.** `tests/fixtures/daqmx-621x.json` holds NI-DAQmx's traffic for
+  the power-up and each kind of request, cut from the captures by
+  `tools/cut_fixture.py` with NI's bytes replaced by their length and
+  SHA-256; `tests/test_python.py` and `tests/test_cpp.py` (native build,
+  `tests/cpp/`) replay it against both drivers (the `Device` layer): the
+  ep01 messages byte for byte, the FX2 requests and the FPGA streams by
+  address and length (their bytes are NI's). One difference is allowed:
+  NI-DAQmx's first DO write skips an unchanged 0, the drivers always write
+  it (its reply is supplied in the replay). The C++ driver also runs
+  against the fake (open, reopen, failures, loopbacks, limits). The asyn
+  layer is exercised by CI's simulated 6211 and 6210 (`run-tests.sh`):
+  Ao2 → Ai3, Bo1 → Bi1, a WaveDig scan, the models. `pytest tests/` needs
+  only a C++17 compiler.
 
 ## Build
 
@@ -129,7 +206,8 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 TARGET=runtime TAG=ioc-daq:local ./build  # 
 ## Licence
 
 GEECS's own work here (the Dockerfile changes, the ibek support files under
-`ibek-support-geecs/`, the docs) is under `LICENSE`, the GEECS licence:
+`ibek-support-geecs/`, the niusb driver, its Python reference and tests,
+the docs) is under `LICENSE`, the GEECS licence:
 BSD-style, Copyright The Regents of the University of California, through
 Lawrence Berkeley National Laboratory, as in GEECS-Plugins. The files
 generated from epics-containers' ioc-template keep its Apache-2.0 licence,

@@ -1,0 +1,17 @@
+# One analog output, calibrated from the unit's EEPROM: Ao$(N) is AO channel ADDR.
+# The 621x has no AO readback; PINI NO (default) leaves the output as the
+# unit holds it at an IOC start, and the record reads 0 until written.
+# P, PORT, N, ADDR; optional PINI, VAL
+record(ao, "$(P)Ao$(N)") {
+    field(DESC, "AO$(ADDR)")
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT),$(ADDR),2)AO_VALUE")
+    field(PREC, "4")
+    field(EGU,  "V")
+    field(DRVH, "10")
+    field(DRVL, "-10")
+    field(HOPR, "10")
+    field(LOPR, "-10")
+    field(VAL,  "$(VAL=0)")
+    field(PINI, "$(PINI=NO)")
+}

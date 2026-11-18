@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../ibek-support/_scripts/support_install_variables.json
+
+# The module's source is in this repository (niusb/), copied to
+# /epics/support/niusb by the Dockerfile before ansible.sh runs, so the clone
+# step finds it in place and builds it. It needs EPICS base and asyn, and
+# libusb-1.0. No vendor code: NI's firmware is mounted at run time
+# (geecs-epics decision 23).
+module: niusb
+version: local
+
+apt_developer:
+  - libusb-1.0-0-dev
+apt_runtime:
+  - libusb-1.0-0
+
+dbds:
+  - niusbSupport.dbd
+libs:
+  - niusb

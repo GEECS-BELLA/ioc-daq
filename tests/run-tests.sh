@@ -41,6 +41,25 @@ elif [[ ! ${result} =~ "5.15" || ! ${result} =~ "/epics/runtime/st.cmd" ]]; then
     exit 1
 fi
 
+# the NI USB-621x on its fake: Ao2 -> Ai3 and Bo1 -> Bi1 through the driver
+if ! echo "${result}" | grep -A1 "dbgf NITEST:Ai3" | grep -Eq "DBF_DOUBLE: *2\.500"; then
+    echo "ERROR: the NI USB-621x fake's Ao2 -> Ai3 not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST:Model" | grep -q "USB-6211"; then
+    echo "ERROR: the NI USB-621x fake's model not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST:Bi1" | grep -q "\"High\""; then
+    echo "ERROR: the NI USB-621x fake's Bo1 -> Bi1 not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST:WaveDig3" | grep -Eq "DBF_DOUBLE\[100\]: *2\.500"; then
+    echo "ERROR: the NI USB-621x fake's timed scan (WaveDig3) not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST2:Model" | grep -q "USB-6210" ||
+     ! echo "${result}" | grep -A1 "dbgf NITEST2:Ai4" | grep -Eq "DBF_DOUBLE: *0\.300"; then
+    echo "ERROR: the NI USB-6210 fake not as expected"
+    exit 1
+fi
+
 # verify --test mode generates runtime assets but does not launch the IOC binary.
 # KUBERNETES_PORT is set as it is inside a pod (e.g. kodman on GitLab CI),
 # where start.sh would otherwise re-exec through stdio-socket.

@@ -11,6 +11,11 @@ only) over MCC's open uldaq library from our recipe in
   Records come from the `measComp.MultiFunction` entity: upstream's
   `<model>.substitutions`, or the instance's own file (`substitutions`;
   the USB-1808's needs one, README "The entity").
+- **NI USB-621x** (`niusb/`, ours, README "NI USB-621x"): the C++ driver
+  must keep making exactly the requests of the Python reference and of the
+  NI-DAQmx fixture (`pytest tests/`); NI's firmware never enters this
+  repository or the image (geecs-epics decision 23), only its file names
+  and SHA-256 sums. Bench instance owed in geecs-epics.
 - **Why ours.** No epics-containers image or ibek-support recipe carries
   measComp (checked 2026-10-30). uldaq is MIT and built from source here, so
   the image may be published (no decision 12 restriction). A LabJack driver,

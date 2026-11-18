@@ -26,3 +26,34 @@ entities:
   - type: epics.PostStartupCommand
     command: |
       dbgf EXAMPLE:IBEK:SUM
+
+  # NI USB-621x on the fake (no hardware, no firmware): AO1 loops back to
+  # AI2 (Ao2 -> Ai3, and WaveDig3 in a timed scan) and P1.0 to P0.0
+  # (Bo1 -> Bi1); run-tests.sh checks them
+  - type: niusb.USB621x
+    name: NI1
+    P: "NITEST:"
+    model: USB6211
+    simulate: true
+
+  # and a 6210 (no AO), so its entity branch and substitutions load
+  - type: niusb.USB621x
+    name: NI2
+    P: "NITEST2:"
+    model: USB6210
+    simulate: true
+
+  - type: epics.PostStartupCommand
+    command: |
+      dbpf NITEST:Ao2 2.5
+      dbpf NITEST:Bo1 1
+      dbpf NITEST:WaveDigNumChans 3
+      dbpf NITEST:WaveDigNumPoints 100
+      dbpf NITEST:WaveDigRun 1
+      epicsThreadSleep 2.5
+      dbgf NITEST:Ai3
+      dbgf NITEST:Bi1
+      dbgf NITEST:Model
+      dbgf NITEST:WaveDig3
+      dbgf NITEST2:Model
+      dbgf NITEST2:Ai4

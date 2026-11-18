@@ -1,0 +1,44 @@
+# The unit: identity, connection, the last error and the firmware folder's state.
+# P, PORT
+record(stringin, "$(P)Model") {
+    field(DESC, "NI model")
+    field(DTYP, "asynOctetRead")
+    field(INP,  "@asyn($(PORT),0,1)MODEL")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+}
+record(stringin, "$(P)SerialNumber") {
+    field(DESC, "USB serial")
+    field(DTYP, "asynOctetRead")
+    field(INP,  "@asyn($(PORT),0,1)SERIAL")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+}
+record(bi, "$(P)Connected") {
+    field(DESC, "Unit open")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),0,1)CONNECTED")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+    field(ZNAM, "Disconnected")
+    field(ZSV,  "MAJOR")
+    field(ONAM, "Connected")
+}
+record(waveform, "$(P)LastError") {
+    field(DESC, "Last error, empty if none")
+    field(DTYP, "asynOctetRead")
+    field(INP,  "@asyn($(PORT),0,1)STATUS")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+    field(FTVL, "CHAR")
+    field(NELM, "512")
+}
+record(waveform, "$(P)Firmware") {
+    field(DESC, "NI firmware folder state")
+    field(DTYP, "asynOctetRead")
+    field(INP,  "@asyn($(PORT),0,1)FIRMWARE")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+    field(FTVL, "CHAR")
+    field(NELM, "512")
+}

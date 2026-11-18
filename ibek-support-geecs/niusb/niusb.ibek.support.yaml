@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://github.com/epics-containers/ibek/releases/download/3.0.1/ibek.support.schema.json
+
+# NI USB-621x multifunction DAQs over libusb, without NI's driver (README
+# "NI USB-621x"). One entity per unit: the port and the model's records.
+
+module: niusb
+
+entity_models:
+  - name: USB621x
+    description: |-
+      One NI USB-6211 or USB-6210 as an asyn port with records named as
+      measComp's: Ai1-16 (on demand), Ao1-2 (6211), Bi1-4 (P0), Bo1-4 (P1)
+      with their readback, the WaveDig finite timed scan, and the unit's
+      identity, connection and last error. A blank unit (after a power-up)
+      gets NI's firmware from fw_dir, five files of an NI-DAQmx 20 install,
+      checked by SHA-256 (geecs-epics decision 23).
+    parameters:
+      name:
+        type: id
+        description: |-
+          The asyn port name
+      serial:
+        type: str
+        description: |-
+          The unit's USB serial number (lsusb's iSerial once loaded, e.g.
+          016CD81D); empty for the first 621x found
+        default: ""
+      P:
+        type: str
+        description: |-
+          PV prefix, with its trailing colon
+      model:
+        type: enum
+        description: |-
+          The unit's model: selects its records (the 6210 has no AO)
+        values:
+          USB6211:
+          USB6210:
+      fw_dir:
+        type: str
+        description: |-
+          The folder of NI's firmware files, mounted read-only
+        default: /opt/ni-firmware
+      simulate:
+        type: bool
+        description: |-
+          Run on the fake (no hardware, no firmware): the model's unit with
+          AO0/AO1 looped back to AI1/AI2 and P1.0 to P0.0
+        default: false
+      max_points:
+        type: int
+        description: |-
+          WaveDig points per channel at most (the arrays' size)
+        default: 16384
+
+    pre_init:
+      - value: |
+          # niUsb621xConfig(port, serial, fwDir, simulate, maxPoints)
+          niUsb621xConfig("{{name}}", "{{serial}}", "{{fw_dir}}", "{% if simulate %}{{ 'USB-6210' if model == 'USB6210' else 'USB-6211' }}{% endif %}", {{max_points}})
+          dbLoadTemplate("/epics/support/niusb/db/{{model}}.substitutions", "P={{P}},PORT={{name}},MAX_POINTS={{max_points}}")
