@@ -1,9 +1,13 @@
-/* drvNiUsb6008: one NI USB-6008 as an asyn port (ASYN_CANBLOCK: the port's
+/* Kept apart from drvNiUsb621x.cpp on purpose, so the bench-proven 621x
+ * driver stays frozen: the reconnect, retry and WaveDig handling are
+ * duplicated there, and a fix to one belongs in both.
+ *
+ * drvNiUsb6008: one NI USB-6008 as an asyn port (ASYN_CANBLOCK: the port's
  * thread makes every USB call, one at a time). The 621x's parameter names
  * (drvNiUsb621x.cpp), so GEECS sees one DAQ family; what differs:
  *
  *   AI_RANGE   int32, addr   0..7: +-20, 10, 5, 4, 2.5, 2, 1.25, 1 V (DIFF);
- *                            RSE is +-10 V (1) only
+ *                            ignored in RSE, which is always +-10 V
  *   AI_MODE    int32, addr   0 RSE (AI0-7), 2 DIFF (AI0-3, each against AI n+4);
  *                            1 (NRSE) is refused
  *   AO_VALUE   float64, addr AO0, AO1, 0..5 V (clamped), from the unit's calibration
@@ -59,7 +63,7 @@ private:
     void ok();
     asynStatus acquire(asynUser *u);
     void opened();
-    static double rangeOf(int index);
+    static double rangeOf(int index, Term mode);
     static Term modeOf(int index);
 
     int pModel, pSerial, pStatus, pFirmware, pConnected;
@@ -198,8 +202,12 @@ void drvNiUsb6008::ok()
     setStringParam(pStatus, "");
 }
 
-double drvNiUsb6008::rangeOf(int index)
+/* The range of a read: in RSE always +-10 V (the Range record is ignored, so
+ * a channel switched back from DIFF reads without a Range change). */
+double drvNiUsb6008::rangeOf(int index, Term mode)
 {
+    if (mode == Term::RSE)
+        return RSE_RANGE;
     const std::vector<double> &r = diffRanges();
     if (index < 0 || size_t(index) >= r.size())
         throw Error("range index " + std::to_string(index));
@@ -228,7 +236,8 @@ asynStatus drvNiUsb6008::readFloat64(asynUser *u, epicsFloat64 *value)
         getIntegerParam(addr, pAiRange, &range);
         getIntegerParam(addr, pAiMode, &mode);
         getIntegerParam(addr, pAiAverage, &avg);
-        *value = dev_->aiRead(addr, rangeOf(range), modeOf(mode), uint32_t(std::max(1, avg)));
+        Term t = modeOf(mode);
+        *value = dev_->aiRead(addr, rangeOf(range, t), t, uint32_t(std::max(1, avg)));
         setDoubleParam(addr, pAiValue, *value);
         ok();
         callParamCallbacks(addr);
@@ -275,8 +284,11 @@ asynStatus drvNiUsb6008::writeInt32(asynUser *u, epicsInt32 value)
     int addr, reason = u->reason;
     getAddress(u, &addr);
     if (reason == pAiRange || reason == pWdRange) {
-        if (value < 0 || size_t(value) >= diffRanges().size())
+        if (value < 0 || size_t(value) >= diffRanges().size()) {
+            epicsSnprintf(u->errorMessage, u->errorMessageSize, "the 6008's ranges are 0..%d, not %d",
+                          int(diffRanges().size()) - 1, value);
             return asynError;
+        }
     } else if (reason == pAiMode || reason == pWdMode) {
         if (value != 0 && value != 2) {
             epicsSnprintf(u->errorMessage, u->errorMessageSize, "the 6008's modes are RSE (0) and DIFF (2)");
@@ -323,8 +335,8 @@ asynStatus drvNiUsb6008::acquire(asynUser *u)
         std::vector<int> chans;
         for (int c = first; c < first + nch; c++)
             chans.push_back(c);
-        double r = rangeOf(range);
         Term t = modeOf(mode);
+        double r = rangeOf(range, t);
         std::vector<uint16_t> w = dev_->aiTimedWords(chans, 1.0 / dwell, uint32_t(n), r, t);
         double actual = Device6008::timedDivisor(chans.size(), 1.0 / dwell) / CLOCK;
         std::vector<double> tv(n), v(n);

@@ -20,6 +20,7 @@ struct Fake6008Unit {
 
     std::string serial;
     bool present = true;
+    bool stallTimed = false;      // a timed scan starts but its samples never come
     Bytes mem;                    // the calibration memory
     n6008::Calibration cal;
     int16_t ao[2] = {0, 0};

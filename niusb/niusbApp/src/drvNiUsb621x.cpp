@@ -1,4 +1,7 @@
-/* drvNiUsb621x: one NI USB-621x as an asyn port (ASYN_CANBLOCK: the port's
+/* drvNiUsb6008.cpp duplicates this file's reconnect, retry and WaveDig
+ * handling on purpose (this driver stays frozen): a fix to one belongs in both.
+ *
+ * drvNiUsb621x: one NI USB-621x as an asyn port (ASYN_CANBLOCK: the port's
  * thread makes every USB call, one at a time).
  *
  * Parameters (addr = channel where it says so):

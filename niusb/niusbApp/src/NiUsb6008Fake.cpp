@@ -1,7 +1,9 @@
 #include "NiUsb6008Fake.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <thread>
 
 namespace niusb {
 
@@ -140,7 +142,7 @@ void Fake6008Unit::command(const Bytes &m)
         count = be32(&p[0]);
         ok();
     } else if (sub == SUB_AI_TIMING && verb == 0x0A) {
-        if (timed)
+        if (timed && !stallTimed)
             for (uint32_t i = 0; i < count; i++)
                 for (int c : aiChans)
                     push(word(c));
@@ -176,9 +178,9 @@ public:
         u_->command(data);
     }
 
-    Bytes read(uint8_t ep, size_t maxLen, int) override
+    Bytes read(uint8_t ep, size_t maxLen, int timeoutMs) override
     {
-        std::lock_guard<std::mutex> g(bus_.lock);
+        std::unique_lock<std::mutex> g(bus_.lock);
         gone();
         if (ep == EP_REPLY) {
             if (u_->replies.empty())
@@ -188,8 +190,11 @@ public:
             return r;
         }
         if (ep == EP_SAMPLES) {
-            if (u_->data.empty())
+            if (u_->data.empty()) {
+                g.unlock();  // a read with nothing to come waits its timeout, as on the unit
+                std::this_thread::sleep_for(std::chrono::milliseconds(std::min(timeoutMs, 100)));
                 throw Timeout("fake 6008: no samples pending");
+            }
             size_t n = std::min(maxLen, u_->data.size());
             Bytes r(u_->data.begin(), u_->data.begin() + n);
             u_->data.erase(u_->data.begin(), u_->data.begin() + n);

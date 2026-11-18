@@ -1,6 +1,7 @@
 /* The USB-6008 driver against its fake (decision 13): open, the loopbacks,
  * the refusals, an unplug and replug. Prints one "check <name> <ok|FAIL>
  * <detail>" line per check. */
+#include <chrono>
 #include <cmath>
 #include <iostream>
 
@@ -18,13 +19,17 @@ static void check(const std::string &name, bool ok, const std::string &detail = 
     failures += !ok;
 }
 
-template <class F> static void refused(const std::string &name, F f)
+/* Refused by the driver: an Error that is not a TransportError (a USB
+ * failure would pass for the wrong reason) and, if given, says what. */
+template <class F> static void refused(const std::string &name, F f, const std::string &says = "")
 {
     try {
         f();
-        check(name, false);
+        check(name, false, "not refused");
+    } catch (const TransportError &e) {
+        check(name, false, std::string("a transport error: ") + e.what());
     } catch (const Error &e) {
-        check(name, true, e.what());
+        check(name, std::string(e.what()).find(says) != std::string::npos, e.what());
     }
 }
 
@@ -108,7 +113,25 @@ int main()
     refused("missing-serial", [&] {
         Device6008 none(bus, "NOSUCH");
         none.open();
-    });
+    }, "no NI USB-6008 with serial NOSUCH found");
+
+    // A timed scan whose samples never come: refused at its deadline after the
+    // teardown, the unit stays open, and the next on-demand read is prompt.
+    a->stallTimed = true;
+    size_t sentBefore = a->received.size();
+    auto t0 = std::chrono::steady_clock::now();
+    refused("stalled-scan", [&] { d.aiTimedWords({0}, 1000, 10, 10.0, Term::RSE); }, "by the deadline");
+    a->stallTimed = false;
+    bool torn = false;
+    for (size_t i = sentBefore; i < a->received.size(); i++)
+        torn = torn || (a->received[i][7] == 0x0D && a->received[i][9] == SUB_AI_TIMING);
+    check("stalled-scan-torn-down", torn && d.isOpen());
+    auto t1 = std::chrono::steady_clock::now();
+    double v = d.aiRead(0, 10.0, Term::RSE);
+    double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t1).count();
+    check("read-after-stalled-scan", std::fabs(v - 2.5) < 6e-3 && dt < 1.0,
+          std::to_string(v) + " V in " + std::to_string(dt) + " s, scan " +
+              std::to_string(std::chrono::duration<double>(t1 - t0).count()) + " s");
 
     // Unplugged: a transport error; the unit cannot be found until it is back.
     a->present = false;
@@ -119,7 +142,7 @@ int main()
         check("unplug-is-transport-error", true, e.what());
     }
     d.close();
-    refused("reopen-while-unplugged", [&] { d.open(); });
+    refused("reopen-while-unplugged", [&] { d.open(); }, "no NI USB-6008 with serial FAKEA found");
     check("failed-open-leaves-nothing-open", !d.isOpen());
     a->present = true;
     a->replies.push_back(fromHex("0001000c0008010000000002"));  // a stale reply from before the pull

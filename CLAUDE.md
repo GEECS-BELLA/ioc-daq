@@ -18,7 +18,9 @@ only) over MCC's open uldaq library from our recipe in
   and SHA-256 sums. Bench instance owed in geecs-epics.
 - **NI USB-6008** (`niusb/`, `NiUsb6008.*` and `drvNiUsb6008.cpp`, README "NI
   USB-6008"): no firmware; held to `python/ni6008.py` and
-  `tests/fixtures/daqmx-6008.json` the same way. Not yet run from Linux.
+  `tests/fixtures/daqmx-6008.json` the same way. Phases A and B passed on a
+  USB-6008 from Linux (2026-11-18: the Python reference, the IOC over CA);
+  owed: the soak and a replug while running.
 - **Why ours.** No epics-containers image or ibek-support recipe carries
   measComp (checked 2026-10-30). uldaq is MIT and built from source here, so
   the image may be published (no decision 12 restriction). A LabJack driver,

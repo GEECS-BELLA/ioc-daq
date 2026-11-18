@@ -47,7 +47,7 @@ static void pad4(Bytes &b)
         b.push_back(0);
 }
 
-Bytes msg(uint8_t verb, uint8_t subsys, const Bytes &payload, uint16_t index, uint8_t kind, uint16_t ch)
+Bytes msg6008(uint8_t verb, uint8_t subsys, const Bytes &payload, uint16_t index, uint8_t kind, uint16_t ch)
 {
     Bytes out;
     uint16_t n = uint16_t(12 + payload.size());
@@ -66,7 +66,7 @@ Bytes calRead(uint32_t addr, uint16_t n)
     put32(p, addr);
     put16(p, n);
     put16(p, 0);
-    return msg(0x14, SUB_CAL, p);
+    return msg6008(0x14, SUB_CAL, p);
 }
 
 /* u16 byte count (2 + 2 per entry), the entries as u16, unpadded. */
@@ -103,56 +103,56 @@ std::vector<Bytes> aiConfig(const std::vector<int> &chans, double range, Term mo
     Bytes pl = list(pos);
     rg.insert(rg.end(), pl.begin(), pl.end());
     pad4(rg);
-    return {msg(0x0F, SUB_AI_CHAN, cl), msg(0x0E, SUB_AI_CHAN, modes), msg(0x10, SUB_AI_CHAN, rg)};
+    return {msg6008(0x0F, SUB_AI_CHAN, cl), msg6008(0x0E, SUB_AI_CHAN, modes), msg6008(0x10, SUB_AI_CHAN, rg)};
 }
 
 std::vector<Bytes> aiOnDemand(int chan, double range, Term mode, uint32_t n)
 {
     std::vector<Bytes> m = aiConfig({chan}, range, mode);
-    m.insert(m.end(), {msg(0x0E, SUB_AI_TIMING, u32(0)), msg(0x0F, SUB_AI_TIMING, u32(1)),
-                       msg(0x13, SUB_AI_TIMING), msg(0x15, SUB_AI_TIMING), msg(0x18, SUB_AI_TIMING),
-                       msg(0x0F, SUB_AI_DATA), msg(0x09, SUB_AI_DATA), msg(0x09, SUB_AI_TIMING),
-                       msg(0x14, SUB_AI_DATA, u32(n), 0, 0)});
+    m.insert(m.end(), {msg6008(0x0E, SUB_AI_TIMING, u32(0)), msg6008(0x0F, SUB_AI_TIMING, u32(1)),
+                       msg6008(0x13, SUB_AI_TIMING), msg6008(0x15, SUB_AI_TIMING), msg6008(0x18, SUB_AI_TIMING),
+                       msg6008(0x0F, SUB_AI_DATA), msg6008(0x09, SUB_AI_DATA), msg6008(0x09, SUB_AI_TIMING),
+                       msg6008(0x14, SUB_AI_DATA, u32(n), 0, 0)});
     return m;
 }
 
 std::vector<Bytes> aiTimed(const std::vector<int> &chans, double range, Term mode, uint32_t divisor, uint32_t n)
 {
     std::vector<Bytes> m = aiConfig(chans, range, mode);
-    m.insert(m.end(), {msg(0x0E, SUB_AI_TIMING, u32(0x01000000)), msg(0x16, SUB_AI_TIMING, u32(divisor)),
-                       msg(0x0F, SUB_AI_TIMING, u32(n)), msg(0x13, SUB_AI_TIMING), msg(0x15, SUB_AI_TIMING),
-                       msg(0x18, SUB_AI_TIMING), msg(0x12, SUB_AI_DATA, u32(uint32_t(2 * n * chans.size())), 0, 0),
-                       msg(0x0F, SUB_AI_DATA), msg(0x09, SUB_AI_DATA), msg(0x09, SUB_AI_TIMING),
-                       msg(0x0A, SUB_AI_TIMING)});
+    m.insert(m.end(), {msg6008(0x0E, SUB_AI_TIMING, u32(0x01000000)), msg6008(0x16, SUB_AI_TIMING, u32(divisor)),
+                       msg6008(0x0F, SUB_AI_TIMING, u32(n)), msg6008(0x13, SUB_AI_TIMING), msg6008(0x15, SUB_AI_TIMING),
+                       msg6008(0x18, SUB_AI_TIMING), msg6008(0x12, SUB_AI_DATA, u32(uint32_t(2 * n * chans.size())), 0, 0),
+                       msg6008(0x0F, SUB_AI_DATA), msg6008(0x09, SUB_AI_DATA), msg6008(0x09, SUB_AI_TIMING),
+                       msg6008(0x0A, SUB_AI_TIMING)});
     return m;
 }
 
 const std::vector<Bytes> &aiPoll()
 {
-    static const std::vector<Bytes> m = {msg(0x13, SUB_AI_DATA), msg(0x10, SUB_AI_DATA)};
+    static const std::vector<Bytes> m = {msg6008(0x13, SUB_AI_DATA), msg6008(0x10, SUB_AI_DATA)};
     return m;
 }
 
 const std::vector<Bytes> &aiTeardown()
 {
-    static const std::vector<Bytes> m = {msg(0x0B, SUB_AI_TIMING), msg(0x0C, SUB_AI_TIMING),
-                                         msg(0x0C, SUB_AI_DATA), msg(0x0D, SUB_AI_TIMING)};
+    static const std::vector<Bytes> m = {msg6008(0x0B, SUB_AI_TIMING), msg6008(0x0C, SUB_AI_TIMING),
+                                         msg6008(0x0C, SUB_AI_DATA), msg6008(0x0D, SUB_AI_TIMING)};
     return m;
 }
 
 Bytes dioRead(uint8_t port)
 {
-    return msg(0x0E, SUB_DIO, {0, 3, port, 0});
+    return msg6008(0x0E, SUB_DIO, {0, 3, port, 0});
 }
 
 Bytes dioWrite(uint8_t port, uint8_t value)
 {
-    return msg(0x0F, SUB_DIO, {0, 3, port, 0, 3, value, 0, 0});
+    return msg6008(0x0F, SUB_DIO, {0, 3, port, 0, 3, value, 0, 0});
 }
 
 Bytes dioDirection(uint8_t p0, uint8_t p1)
 {
-    return msg(0x12, SUB_DIO, {0, 4, p0, uint8_t(p1 & 0x0F), 0, 4, 0, 0});
+    return msg6008(0x12, SUB_DIO, {0, 4, p0, uint8_t(p1 & 0x0F), 0, 4, 0, 0});
 }
 
 Bytes aoWrite(uint16_t chan, int16_t code)
@@ -160,7 +160,7 @@ Bytes aoWrite(uint16_t chan, int16_t code)
     Bytes p;
     put16(p, uint16_t(code));
     put16(p, 0);
-    return msg(0x0E, SUB_AO, p, chan);
+    return msg6008(0x0E, SUB_AO, p, chan);
 }
 
 Calibration Calibration::parse(const Bytes &mem)
@@ -277,6 +277,7 @@ void Device6008::adopt(std::unique_ptr<Transport> t, const UnitInfo &u, const By
     setCal(mem);
 }
 
+/* The AI teardown: send(), not check(), so a refusal (a task not armed) is tolerated. */
 void Device6008::teardown()
 {
     for (const Bytes &m : aiTeardown())
@@ -311,8 +312,8 @@ Bytes Device6008::samples(size_t want, double seconds, bool poll)
     auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(seconds);
     Bytes raw;
     while (raw.size() < want) {
-        if (std::chrono::steady_clock::now() > deadline)
-            throw Timeout("AI: " + std::to_string(raw.size()) + " of " + std::to_string(want) + " bytes");
+        if (std::chrono::steady_clock::now() > deadline)  // the unit answers, the samples did not come: not a transport error
+            throw Error("AI: " + std::to_string(raw.size()) + " of " + std::to_string(want) + " bytes by the deadline");
         if (poll)
             for (const Bytes &m : aiPoll())
                 check(m);
@@ -406,7 +407,17 @@ std::vector<uint16_t> Device6008::aiTimedWords(const std::vector<int> &chans, do
     } catch (const TransportError &) {
         throw;
     } catch (...) {
+        // a scan that failed (its samples never all came): stop it, refusals
+        // tolerated, and drop late samples so the next read gets its own
         teardown();
+        for (int i = 0; i < 64; i++) {
+            try {
+                if (t_->read(EP_SAMPLES, 64, 100).empty())
+                    break;
+            } catch (const Timeout &) {
+                break;
+            }
+        }
         throw;
     }
     teardown();

@@ -206,8 +206,10 @@ the entity `niusb.USB6008`), with the 621x's record names so GEECS sees one
 DAQ family. The protocol was decoded from USB captures of NI-DAQmx 20 driving
 a USB-6008 (plug-in, reads, writes against loopbacks AO0→AI0, AO1→AI1,
 P1.0→P0.0); the Python reference is `python/ni6008.py`, and the C++ driver
-makes its requests byte for byte. Code-complete; not yet run on a 6008 from
-Linux (the bench owes it).
+makes its requests byte for byte. Phases A and B passed on a USB-6008 from
+Linux (2026-11-18), with the Python reference and with the IOC over CA: AO
+codes identical to DAQmx's, AO→AI within 7.6 mV over 0-4.5 V, DO patterns
+exact, timed AI up to 10 kS/s × 2000.
 
 - **Protocol.** No firmware and no FX2: the unit enumerates ready as
   `3923:717A` (full speed, interface 0, bulk ep01 out, ep81 and ep82 in). The
@@ -243,6 +245,8 @@ Linux (the bench owes it).
   1 s; `Ai<n>Range` ±20, 10, 5, 4, 2.5, 2, 1.25, 1 V, default ±10;
   `Ai<n>Mode` RSE or DIFF; `Ai<n>Average`). RSE is ±10 V only; DIFF is
   AI0-3, each against AI n+4; anything else is refused into `LastError`.
+  In RSE the Range record is ignored (RSE is always ±10 V), so switching a
+  DIFF channel back to RSE needs no Range change.
   `Ao1`-`Ao2` (0..5 V, `PINI` NO, read 0 until written), `Bi1`-`Bi8`
   (P0.0-7), `Bo1`-`Bo4` (P1.0-3, `PINI` NO) with `Bo<n>_RBV`, the
   `WaveDig` scan (`Dwell` 0.1 to 2.73 ms on the 24 MHz clock, 10 kS/s
@@ -256,12 +260,8 @@ Linux (the bench owes it).
   captures show 16 bits in a 32-bit field, so the drivers refuse rather
   than guess), several ranges in one scan, and the USB-6009 (likely the
   same protocol at 14 bits; no unit in hand).
-- **Owed on the bench:** the open, every read and write above on a 6008
-  from Linux; whether the timed read needs NI-DAQmx's poll at all and what
-  `13 02 03`'s four bytes report (always 0 in the captures); timed reads at
-  10 kS/s and longer than the 512-byte FIFO; whether the divisor field
-  takes 32 bits; on-demand reads of up to 100 samples (DAQmx asked for 10
-  at most).
+- **Owed on the bench:** the overnight soak, and a replug while the IOC
+  runs.
 - **Tests.** `tests/fixtures/daqmx-6008.json` holds NI-DAQmx's traffic for
   each probe step and its calibration read at plug-in (the unit's data, not
   NI code), cut by `tools/cut_fixture_6008.py` with only the volts DAQmx

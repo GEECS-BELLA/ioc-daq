@@ -51,8 +51,8 @@ int diffRangeIndex(double range);       // throws Error on a range the 6008 lack
 
 enum class Term { RSE, DIFF };
 
-Bytes msg(uint8_t verb, uint8_t subsys, const Bytes &payload = {}, uint16_t index = 0, uint8_t kind = 1,
-          uint16_t ch = 1);
+Bytes msg6008(uint8_t verb, uint8_t subsys, const Bytes &payload = {}, uint16_t index = 0, uint8_t kind = 1,
+                uint16_t ch = 1);
 Bytes calRead(uint32_t addr, uint16_t n = CAL_CHUNK);
 /* Channel list, modes and range (one range for every channel). */
 std::vector<Bytes> aiConfig(const std::vector<int> &chans, double range, Term mode);
