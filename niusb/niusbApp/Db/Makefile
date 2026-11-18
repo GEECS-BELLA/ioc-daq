@@ -10,5 +10,8 @@ DB += niusbWaveDig.template
 DB += niusbWaveDigN.template
 DB += USB6211.substitutions
 DB += USB6210.substitutions
+DB += niusb6008Ai.template
+DB += niusb6008WaveDig.template
+DB += USB6008.substitutions
 
 include $(TOP)/configure/RULES

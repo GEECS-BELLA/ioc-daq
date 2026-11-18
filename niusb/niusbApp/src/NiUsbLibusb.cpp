@@ -115,14 +115,16 @@ UnitInfo describe(libusb_device *dev, const libusb_device_descriptor &d)
     return u;
 }
 
-bool wanted(const libusb_device_descriptor &d)
-{
-    return d.idVendor == VID && (d.idProduct == PID_BLANK || modelByPid(d.idProduct));
-}
-
 } // namespace
 
-LibusbBus::LibusbBus()
+bool LibusbBus::wanted(uint16_t vid, uint16_t pid) const
+{
+    if (vid != VID)
+        return false;
+    return pids_ ? pids_(pid) : (pid == PID_BLANK || modelByPid(pid));
+}
+
+LibusbBus::LibusbBus(std::function<bool(uint16_t pid)> pids) : pids_(std::move(pids))
 {
     int rc = libusb_init(&ctx_);
     if (rc)
@@ -163,7 +165,7 @@ std::vector<UnitInfo> LibusbBus::list()
     std::vector<UnitInfo> out;
     for (ssize_t i = 0; i < n; i++) {
         libusb_device_descriptor d;
-        if (libusb_get_device_descriptor(devs[i], &d) == 0 && wanted(d))
+        if (libusb_get_device_descriptor(devs[i], &d) == 0 && wanted(d.idVendor, d.idProduct))
             out.push_back(describe(devs[i], d));
     }
     libusb_free_device_list(devs, 1);
@@ -182,7 +184,7 @@ std::unique_ptr<Transport> LibusbBus::open(const UnitInfo &unit)
     int rc = LIBUSB_ERROR_NO_DEVICE;
     for (ssize_t i = 0; i < n && !h; i++) {
         libusb_device_descriptor d;
-        if (libusb_get_device_descriptor(devs[i], &d) || !wanted(d) || d.idProduct != unit.pid)
+        if (libusb_get_device_descriptor(devs[i], &d) || !wanted(d.idVendor, d.idProduct) || d.idProduct != unit.pid)
             continue;
         UnitInfo here;
         here.bus = libusb_get_bus_number(devs[i]);

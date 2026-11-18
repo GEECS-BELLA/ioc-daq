@@ -1,0 +1,56 @@
+# One analog input of a USB-6008, read on demand: Ai$(N) is channel ADDR (N = ADDR + 1).
+# RSE: AI0-7, +-10 V only. DIFF: AI0-3, each against AI(ADDR + 4), on eight ranges.
+# P, PORT, N, ADDR; optional SCAN, PREC, RANGE (the menu index; 1 +-10 V), MODE (0 RSE, 1 DIFF)
+record(ai, "$(P)Ai$(N)") {
+    field(DESC, "AI$(ADDR)")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),$(ADDR),10)AI_VALUE")
+    field(SCAN, "$(SCAN=1 second)")
+    field(PREC, "$(PREC=4)")
+    field(EGU,  "V")
+    field(HOPR, "10")
+    field(LOPR, "-10")
+}
+record(mbbo, "$(P)Ai$(N)Range") {
+    field(DESC, "AI$(ADDR) range")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_RANGE")
+    field(ZRST, "+-20V")
+    field(ZRVL, "0")
+    field(ONST, "+-10V")
+    field(ONVL, "1")
+    field(TWST, "+-5V")
+    field(TWVL, "2")
+    field(THST, "+-4V")
+    field(THVL, "3")
+    field(FRST, "+-2.5V")
+    field(FRVL, "4")
+    field(FVST, "+-2V")
+    field(FVVL, "5")
+    field(SXST, "+-1.25V")
+    field(SXVL, "6")
+    field(SVST, "+-1V")
+    field(SVVL, "7")
+    field(VAL,  "$(RANGE=1)")
+    field(PINI, "YES")
+}
+record(mbbo, "$(P)Ai$(N)Mode") {
+    field(DESC, "AI$(ADDR) terminal mode")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_MODE")
+    field(ZRST, "RSE")
+    field(ZRVL, "0")
+    field(ONST, "DIFF")
+    field(ONVL, "2")
+    field(VAL,  "$(MODE=0)")
+    field(PINI, "YES")
+}
+record(longout, "$(P)Ai$(N)Average") {
+    field(DESC, "AI$(ADDR) samples per read")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),$(ADDR))AI_AVERAGE")
+    field(VAL,  "1")
+    field(DRVL, "1")
+    field(DRVH, "100")
+    field(PINI, "YES")
+}

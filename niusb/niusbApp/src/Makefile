@@ -6,9 +6,11 @@ include $(TOP)/configure/CONFIG
 #=============================
 
 INC += NiUsbProtocol.h NiUsbTransport.h NiUsbFirmware.h NiUsb621x.h NiUsbFake.h NiUsbLibusb.h
+INC += NiUsb6008.h NiUsb6008Fake.h
 LIBRARY_IOC = niusb
 LIB_SRCS += NiUsbProtocol.cpp NiUsbFirmware.cpp NiUsb621x.cpp NiUsbFake.cpp NiUsbLibusb.cpp
-LIB_SRCS += drvNiUsb621x.cpp
+LIB_SRCS += NiUsb6008.cpp NiUsb6008Fake.cpp
+LIB_SRCS += drvNiUsb621x.cpp drvNiUsb6008.cpp
 DBD += niusbSupport.dbd
 USR_CXXFLAGS += -std=c++17
 LIB_SYS_LIBS += usb-1.0
