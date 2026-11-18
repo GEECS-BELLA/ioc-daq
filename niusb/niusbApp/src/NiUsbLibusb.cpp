@@ -3,6 +3,7 @@
 #include <libusb-1.0/libusb.h>
 
 #include <chrono>
+#include <fstream>
 #include <thread>
 
 namespace niusb {
@@ -87,6 +88,16 @@ UnitInfo describe(libusb_device *dev, const libusb_device_descriptor &d)
     int n = libusb_get_port_numbers(dev, ports, sizeof ports);
     for (int i = 0; i < n; i++)
         u.ports.push_back(ports[i]);
+    // The serial as the kernel read it at enumeration (sysfs): a live string
+    // request goes unanswered while a reply from an interrupted transaction
+    // still waits on ep81 (seen after a killed process), so it comes second.
+    std::string path = "/sys/bus/usb/devices/" + std::to_string(u.bus) + "-";
+    for (size_t i = 0; i < u.ports.size(); i++)
+        path += (i ? "." : "") + std::to_string(u.ports[i]);
+    std::ifstream sys(path + "/serial");
+    if (sys && std::getline(sys, u.serial) && !u.serial.empty())
+        return u;
+    u.serial.clear();
     if (d.iSerialNumber) {
         libusb_device_handle *h = nullptr;
         if (libusb_open(dev, &h) == 0) {

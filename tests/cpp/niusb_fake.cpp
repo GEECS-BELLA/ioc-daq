@@ -162,6 +162,16 @@ int main()
     badLock.open();
     check("lock-problem-reported-only-when-loading", badLock.lockProblem.empty());
 
+    // A reply left by a killed process waits on ep81: drained at open.
+    FakeBus bus5;
+    auto b5 = bus5.add(0x7270, "STALE", true);
+    b5->replies.push_back(fromHex("0001000c0008010000000002"));
+    b5->data = {0x12, 0x34};
+    Device stale(bus5, "STALE", nullptr);
+    stale.open();
+    check("stale-reply-drained", std::fabs(stale.aiRead(3, 10.0, Mode::RSE) - 0.3) < 1e-3 &&
+                                     std::string(stale.model().name) == "USB-6211");
+
     std::cout << (failures ? "FAILED" : "PASSED") << "\n";
     return failures ? 1 : 0;
 }

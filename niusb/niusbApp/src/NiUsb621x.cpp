@@ -147,6 +147,17 @@ void Device::attach(const UnitInfo &u, bool fresh)
         bringup();
         return;
     }
+    // Replies and samples left by an interrupted transaction (a killed or
+    // crashed IOC) would be taken for the answers to our first requests.
+    for (uint8_t ep : {EP_REPLY, EP_DATA})
+        for (int i = 0; i < 64; i++) {
+            try {
+                if (t_->read(ep, 512, 100).empty())
+                    break;
+            } catch (const Timeout &) {
+                break;
+            }
+        }
     try {
         readEeprom();
     } catch (const TransportError &) {
