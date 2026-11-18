@@ -15,8 +15,9 @@
  *   DO_RBV     uint32Digital          P1.0-3 as the unit reads them back
  *   WD_NUM_POINTS, WD_FIRST_CHAN, WD_NUM_CHANS, WD_RANGE, WD_MODE  int32
  *   WD_DWELL, WD_DWELL_ACTUAL         float64, s (the clock is 20 MHz / n)
- *   WD_RUN     int32                  1: one finite hardware-timed scan, then 0;
- *                                     an error (and the record's alarm) if none ran.
+ *   WD_RUN     int32                  1: one finite hardware-timed scan, then 0
+ *                                     (an error on the write if none ran)
+ *   WD_OK      int32                  1 after a scan that ran, 0 after one that did not
  *                                     A scan holds the port: at most MAX_SCAN_S
  *   WD_DATA    float64Array, addr     volts per channel; WD_TIME float64Array, s
  *
@@ -66,6 +67,7 @@ private:
 
     int pModel, pSerial, pStatus, pFirmware, pConnected;
     int pAiValue, pAiRange, pAiMode, pAiAverage, pAoValue, pDi, pDo, pDoRbv;
+    int pWdOk;
     int pWdNumPoints, pWdFirstChan, pWdNumChans, pWdRange, pWdMode, pWdDwell, pWdDwellActual, pWdRun, pWdData, pWdTime;
 
     std::unique_ptr<Bus> bus_;
@@ -106,6 +108,7 @@ drvNiUsb621x::drvNiUsb621x(const char *port, const char *serial, const char *fwD
     createParam("WD_DWELL", asynParamFloat64, &pWdDwell);
     createParam("WD_DWELL_ACTUAL", asynParamFloat64, &pWdDwellActual);
     createParam("WD_RUN", asynParamInt32, &pWdRun);
+    createParam("WD_OK", asynParamInt32, &pWdOk);
     createParam("WD_DATA", asynParamFloat64Array, &pWdData);
     createParam("WD_TIME", asynParamFloat64Array, &pWdTime);
 
@@ -124,6 +127,7 @@ drvNiUsb621x::drvNiUsb621x(const char *port, const char *serial, const char *fwD
     setDoubleParam(pWdDwell, 0.001);
     setDoubleParam(pWdDwellActual, 0.001);
     setIntegerParam(pWdRun, 0);
+    setIntegerParam(pWdOk, 1);
     setIntegerParam(pConnected, 0);
     setStringParam(pModel, "");
     setStringParam(pSerial, serial ? serial : "");
@@ -304,9 +308,9 @@ asynStatus drvNiUsb621x::writeInt32(asynUser *u, epicsInt32 value)
         callParamCallbacks();
         asynStatus st = acquire(u);
         setIntegerParam(pWdRun, 0);
-        // the readback that returns the record to Done carries the outcome,
-        // so a scan that did not run leaves WaveDigRun in alarm
-        setParamStatus(pWdRun, st);
+        // Run returns to Done either way (a client waits on it); the outcome
+        // stays in WaveDigOK, which alarms after a scan that did not run
+        setIntegerParam(pWdOk, st == asynSuccess);
         callParamCallbacks();
         return st;
     }

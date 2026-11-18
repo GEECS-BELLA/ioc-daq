@@ -167,8 +167,9 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
 - **WaveDig limits.** The 621x samples 250 kS/s in all: `NumChans` /
   `Dwell` above that is refused. A scan holds the port's thread for its
   whole length, the other records waiting, so a scan longer than 30 s is
-  refused. A scan that did not run puts `WaveDigRun` in alarm, its arrays
-  unchanged.
+  refused. `WaveDigRun` returns to Done either way; after a scan that did
+  not run, `WaveDigOK` is Failed (MAJOR), the arrays are unchanged and the
+  reason is in `LastError`.
 - **Reconnects.** A USB error closes the unit; the next request reopens
   it, at most every 5 s, loading the firmware again if the unit came back
   blank. Records read INVALID meanwhile.

@@ -1,7 +1,9 @@
 # The finite hardware-timed scan (measComp's WaveDig names): NumChans channels
 # from FirstChan, NumPoints samples each, every Dwell s on the 20 MHz clock
 # (DwellActual is the clock's). Writing 1 to WaveDigRun takes one scan; the
-# record returns to Done when the arrays have arrived.
+# record returns to Done when the arrays have arrived, or when the scan was
+# refused or failed: WaveDigOK says which (MAJOR after a scan that did not
+# run, the reason in LastError).
 # P, PORT, MAX_POINTS
 record(longout, "$(P)WaveDigNumPoints") {
     field(DTYP, "asynInt32")
@@ -74,6 +76,16 @@ record(bo, "$(P)WaveDigRun") {
     field(ZNAM, "Done")
     field(ONAM, "Acquire")
     info(asyn:READBACK, "1")
+}
+record(bi, "$(P)WaveDigOK") {
+    field(DESC, "Last WaveDig scan ran")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),0)WD_OK")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+    field(ZNAM, "Failed")
+    field(ZSV,  "MAJOR")
+    field(ONAM, "OK")
 }
 record(waveform, "$(P)WaveDigTimeWF") {
     field(DTYP, "asynFloat64ArrayIn")
