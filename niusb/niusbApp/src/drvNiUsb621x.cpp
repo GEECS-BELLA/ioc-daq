@@ -304,6 +304,9 @@ asynStatus drvNiUsb621x::writeInt32(asynUser *u, epicsInt32 value)
         callParamCallbacks();
         asynStatus st = acquire(u);
         setIntegerParam(pWdRun, 0);
+        // the readback that returns the record to Done carries the outcome,
+        // so a scan that did not run leaves WaveDigRun in alarm
+        setParamStatus(pWdRun, st);
         callParamCallbacks();
         return st;
     }
