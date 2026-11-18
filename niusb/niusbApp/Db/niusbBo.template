@@ -1,0 +1,20 @@
+# One digital output of P1 (MASK 0x1 .. 0x8), as measComp's Bo records, and
+# its state as the unit reads it back. PINI NO (default) leaves the line as
+# the unit holds it at an IOC start.
+# P, PORT, N, MASK; optional SCAN, PINI
+record(bo, "$(P)Bo$(N)") {
+    field(DESC, "P1.$(N) output")
+    field(DTYP, "asynUInt32Digital")
+    field(OUT,  "@asynMask($(PORT),0,$(MASK),2)DO")
+    field(ZNAM, "Low")
+    field(ONAM, "High")
+    field(PINI, "$(PINI=NO)")
+}
+record(bi, "$(P)Bo$(N)_RBV") {
+    field(DESC, "P1.$(N) as read back")
+    field(DTYP, "asynUInt32Digital")
+    field(INP,  "@asynMask($(PORT),0,$(MASK),2)DO_RBV")
+    field(SCAN, "$(SCAN=1 second)")
+    field(ZNAM, "Low")
+    field(ONAM, "High")
+}

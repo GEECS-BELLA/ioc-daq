@@ -5,7 +5,8 @@ ARG REGISTRY=ghcr.io/epics-containers
 # iocStats, pvlogging and autosave, plus asyn, busy and calc from ibek-support
 # pinned at 8545fa2 (the commit ioc-plc, ioc-timing and ioc-motion build
 # with), all upstream recipes, and measComp over MCC's uldaq (MIT, built from
-# source) from our recipe. No closed vendor code.
+# source) from our recipe, and niusb (NI USB-621x, our own driver) from this
+# repository. No closed vendor code.
 ARG RUNTIME=${REGISTRY}/epics-base${IMAGE_EXT}-runtime:7.0.10ec2
 ARG DEVELOPER=${REGISTRY}/epics-base${IMAGE_EXT}-developer:7.0.10ec2
 
@@ -50,6 +51,13 @@ RUN ansible.sh calc
 # v1.2.2: README "measComp"
 COPY ibek-support-geecs/measComp/ ${SOURCE_FOLDER}/ibek-support-geecs/measComp/
 RUN ansible.sh measComp
+
+# niusb: NI USB-621x over libusb, our own driver (README "NI USB-621x"); the
+# source in this repository, in place before ansible.sh so the recipe builds
+# it, not a clone. NI's firmware is never in the image (geecs-epics decision 23)
+COPY ibek-support-geecs/niusb/ ${SOURCE_FOLDER}/ibek-support-geecs/niusb/
+COPY niusb/ /epics/support/niusb/
+RUN ansible.sh niusb
 
 # get the ioc source and build it
 COPY ioc ${SOURCE_FOLDER}/ioc

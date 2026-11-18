@@ -1,0 +1,11 @@
+# One channel's array from the last WaveDig scan: WaveDig$(N) is channel ADDR.
+# P, PORT, N, ADDR, MAX_POINTS
+record(waveform, "$(P)WaveDig$(N)") {
+    field(DTYP, "asynFloat64ArrayIn")
+    field(INP,  "@asyn($(PORT),$(ADDR))WD_DATA")
+    field(SCAN, "I/O Intr")
+    field(FTVL, "DOUBLE")
+    field(NELM, "$(MAX_POINTS)")
+    field(PREC, "4")
+    field(EGU,  "V")
+}
