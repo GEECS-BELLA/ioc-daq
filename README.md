@@ -146,9 +146,16 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   loading runs under an exclusive `flock` on `fw_dir`, which every NI IOC
   on the host mounts from the same host folder (a lock on another copy
   locks nothing), and the bus is listed again once the lock is held, so
-  two IOCs starting together never load one unit at once (on the fake; the
-  bench proof with two IOCs is owed). A lock that cannot be taken is
-  logged as a warning and the load goes ahead.
+  two IOCs starting together never load one unit at once (on the fake,
+  and on the bench: two IOCs on one blank unit, one loaded it and the
+  other was refused `LIBUSB_ERROR_BUSY` and kept retrying). A lock that
+  cannot be taken is logged as a warning and the load goes ahead.
+- **Unplugged or power-cycled.** The IOC marks the unit disconnected at the
+  first failed transfer, retries every 5 s, and reloads it when it comes
+  back blank (22 s from the pull to serving on the bench). libusb's device
+  list is fed by udev's hotplug events, which never reach a container with
+  no udevd, so the driver makes a new libusb context for each scan of the
+  bus while no unit is open.
 - **Records** (measComp's record names only: not its drvInfo strings, its
   full record sets or its screens; `Db/USB6211.substitutions`):
   `Ai1`-`Ai16` (on demand, `SCAN` 1 s; `Ai<n>Range`, `Ai<n>Mode` RSE/NRSE/
