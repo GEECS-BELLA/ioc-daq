@@ -142,10 +142,13 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   powered throughout) needs no firmware.
 - **Several units.** `serial` picks one (lsusb's `iSerial` once loaded). A
   blank unit has no serial: the driver loads blank units one by one until
-  its own appears; the others stay loaded, ready for their own IOCs. Two
-  IOCs starting at the same moment can both try one blank unit; the loser
-  fails its readback check and retries (5 s).
-- **Records** (measComp's names, `Db/USB6211.substitutions`):
+  its own appears; the others stay loaded, ready for their own IOCs. The
+  loading runs under an exclusive `flock` on `fw_dir`, which every NI IOC
+  on the host mounts, and the bus is listed again once the lock is held,
+  so two IOCs starting together never load one unit at once (on the fake;
+  the bench proof with two IOCs is owed).
+- **Records** (measComp's record names only: not its drvInfo strings, its
+  full record sets or its screens; `Db/USB6211.substitutions`):
   `Ai1`-`Ai16` (on demand, `SCAN` 1 s; `Ai<n>Range`, `Ai<n>Mode` RSE/NRSE/
   DIFF, `Ai<n>Average`), `Ao1`-`Ao2` (6211; no readback exists, so the
   record reads 0 until written; `PINI` NO: an IOC start leaves the outputs
@@ -154,7 +157,14 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   (`WaveDigNumPoints`, `FirstChan`, `NumChans`, `Dwell` on the 20 MHz
   clock with `DwellActual`, `Range`, `Mode`, `Run`; arrays `WaveDig1`-`16`
   and `WaveDigTimeWF`), and `Model`, `SerialNumber`, `Connected`,
-  `LastError`, `Firmware`.
+  `LastError`, `Firmware`. After each open the driver takes P1's state from
+  the unit, so a write to one `Bo` keeps the other lines as they are; after
+  a load from blank (the unit lost power) `Ao*` read 0, as the unit does.
+- **WaveDig limits.** The 621x samples 250 kS/s in all: `NumChans` /
+  `Dwell` above that is refused. A scan holds the port's thread for its
+  whole length, the other records waiting, so a scan longer than 30 s is
+  refused. A scan that did not run puts `WaveDigRun` in alarm, its arrays
+  unchanged.
 - **Reconnects.** A USB error closes the unit; the next request reopens
   it, at most every 5 s, loading the firmware again if the unit came back
   blank. Records read INVALID meanwhile.
@@ -166,8 +176,15 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   the power-up and each kind of request, cut from the captures by
   `tools/cut_fixture.py` with NI's bytes replaced by their length and
   SHA-256; `tests/test_python.py` and `tests/test_cpp.py` (native build,
-  `tests/cpp/`) replay it against both drivers, and the C++ driver against
-  the fake. `pytest tests/` needs only a C++17 compiler.
+  `tests/cpp/`) replay it against both drivers (the `Device` layer): the
+  ep01 messages byte for byte, the FX2 requests and the FPGA streams by
+  address and length (their bytes are NI's). One difference is allowed:
+  NI-DAQmx's first DO write skips an unchanged 0, the drivers always write
+  it (its reply is supplied in the replay). The C++ driver also runs
+  against the fake (open, reopen, failures, loopbacks, limits). The asyn
+  layer is exercised by CI's simulated 6211 and 6210 (`run-tests.sh`):
+  Ao2 → Ai3, Bo1 → Bi1, a WaveDig scan, the models. `pytest tests/` needs
+  only a C++17 compiler.
 
 ## Build
 

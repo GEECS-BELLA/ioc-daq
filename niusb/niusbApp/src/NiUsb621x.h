@@ -21,12 +21,22 @@ public:
      * fw: NI's firmware, needed only when a blank unit has to be loaded. */
     Device(Bus &bus, std::string serial, const Firmware *fw);
 
+    /* A file every IOC on the host can open (the firmware folder): the
+     * blank-unit load runs under an exclusive flock on it, so two IOCs
+     * starting together never load one unit at once. "" for none. */
+    std::string loadLock;
+    /* The 621x's aggregate AI rate, samples/s. */
+    static constexpr double MAX_AI_RATE = 250e3;
+
     /* Find the unit and make it ready: an already loaded unit is opened
      * as it is; blank units are loaded one by one until the one with the
      * serial appears (the others stay loaded for their own IOCs). */
     void open();
     void close();
     bool isOpen() const { return t_ != nullptr; }
+    /* The last open loaded the unit from blank (it had lost power): its
+     * outputs are at their power-up state (AO 0 V, P1 low). */
+    bool freshlyLoaded() const { return fresh_; }
 
     const Model &model() const;
     const std::string &serial() const { return info_.serial; }
@@ -79,6 +89,8 @@ private:
     Bytes eeprom_;
     std::array<std::pair<double, double>, 7> cal_{};
     std::vector<std::pair<double, double>> aoCal_;
+    bool fresh_ = false;
+    void openUnlocked();
 };
 
 } // namespace niusb

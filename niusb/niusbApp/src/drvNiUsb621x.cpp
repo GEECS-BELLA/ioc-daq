@@ -15,7 +15,9 @@
  *   DO_RBV     uint32Digital          P1.0-3 as the unit reads them back
  *   WD_NUM_POINTS, WD_FIRST_CHAN, WD_NUM_CHANS, WD_RANGE, WD_MODE  int32
  *   WD_DWELL, WD_DWELL_ACTUAL         float64, s (the clock is 20 MHz / n)
- *   WD_RUN     int32                  1: one finite hardware-timed scan, then 0
+ *   WD_RUN     int32                  1: one finite hardware-timed scan, then 0;
+ *                                     an error (and the record's alarm) if none ran.
+ *                                     A scan holds the port: at most MAX_SCAN_S
  *   WD_DATA    float64Array, addr     volts per channel; WD_TIME float64Array, s
  *
  * A transport error (the unit unplugged, a USB error) closes the unit; the
@@ -40,6 +42,7 @@
 using namespace niusb;
 
 static const double RETRY_S = 5.0;
+static const double MAX_SCAN_S = 30.0;   // a scan holds the port thread; the other records wait
 static const int MAX_CHANNELS = 16;
 
 class drvNiUsb621x : public asynPortDriver {
@@ -56,7 +59,8 @@ private:
     bool ready(asynUser *u);
     void failed(asynUser *u, const std::exception &e);
     void ok();
-    void acquire();
+    asynStatus acquire(asynUser *u);
+    void opened();
     static double rangeOf(int index);
     static Mode modeOf(int index);
 
@@ -142,6 +146,8 @@ drvNiUsb621x::drvNiUsb621x(const char *port, const char *serial, const char *fwD
         }
     }
     dev_ = std::make_unique<Device>(*bus_, serial ? serial : "", fw_.get());
+    if (sim.empty())
+        dev_->loadLock = fwDir ? fwDir : "/opt/ni-firmware";  // shared by every IOC on the host
     ready(pasynUserSelf);
     callParamCallbacks();
 }
@@ -153,13 +159,15 @@ bool drvNiUsb621x::ready(asynUser *u)
     epicsTimeStamp now;
     epicsTimeGetCurrent(&now);
     if (tried_ && epicsTimeDiffInSeconds(&now, &lastTry_) < RETRY_S) {
-        asynPrint(u, ASYN_TRACE_FLOW, "%s: waiting to retry the open\n", portName);
+        epicsSnprintf(u->errorMessage, u->errorMessageSize, "%s: unit closed; next open attempt within %.0f s",
+                      portName, RETRY_S);
         return false;
     }
     tried_ = true;
     lastTry_ = now;
     try {
         dev_->open();
+        opened();
         setStringParam(pModel, dev_->model().name);
         setStringParam(pSerial, dev_->serial());
         setIntegerParam(pConnected, 1);
@@ -167,9 +175,26 @@ bool drvNiUsb621x::ready(asynUser *u)
         callParamCallbacks();
         return true;
     } catch (const std::exception &e) {
+        dev_->close();  // an open that failed part way leaves nothing open
         failed(u, e);
         return false;
     }
+}
+
+/* After each open: take P1's state from the unit, so a masked write keeps
+ * the other lines as they are; after a load from blank the AOs are at 0 V. */
+void drvNiUsb621x::opened()
+{
+    uint32_t w = dev_->pfiRead();
+    doValue_ = uint8_t((w >> DO_SHIFT) & 0xF);
+    setUIntDigitalParam(pDo, doValue_, 0xF);
+    setUIntDigitalParam(pDoRbv, doValue_, 0xF);
+    setUIntDigitalParam(pDi, w & 0xF, 0xF);
+    if (dev_->freshlyLoaded())
+        for (int a = 0; a < MAX_CHANNELS; a++) {
+            setDoubleParam(a, pAoValue, 0.0);
+            callParamCallbacks(a);
+        }
 }
 
 void drvNiUsb621x::failed(asynUser *u, const std::exception &e)
@@ -275,21 +300,20 @@ asynStatus drvNiUsb621x::writeInt32(asynUser *u, epicsInt32 value)
             return asynSuccess;
         setIntegerParam(pWdRun, 1);
         callParamCallbacks();
-        acquire();
+        asynStatus st = acquire(u);
         setIntegerParam(pWdRun, 0);
         callParamCallbacks();
-        return asynSuccess;
+        return st;
     }
     setIntegerParam(addr, reason, value);
     callParamCallbacks(addr);
     return asynSuccess;
 }
 
-void drvNiUsb621x::acquire()
+asynStatus drvNiUsb621x::acquire(asynUser *u)
 {
-    asynUser *u = pasynUserSelf;
     if (!ready(u))
-        return;
+        return asynError;
     try {
         int n, first, nch, range, mode;
         double dwell;
@@ -303,6 +327,9 @@ void drvNiUsb621x::acquire()
             throw Error("WaveDig points must be 1.." + std::to_string(maxPoints_));
         if (nch < 1)
             throw Error("WaveDig needs a channel");
+        if (n * dwell > MAX_SCAN_S)
+            throw Error("WaveDig: " + std::to_string(n * dwell) + " s exceeds the " + std::to_string(int(MAX_SCAN_S)) +
+                        " s a scan may hold the port");
         std::vector<int> chans;
         for (int c = first; c < first + nch; c++)
             chans.push_back(c);
@@ -320,8 +347,10 @@ void drvNiUsb621x::acquire()
         }
         setDoubleParam(pWdDwellActual, actual);
         ok();
+        return asynSuccess;
     } catch (const std::exception &e) {
         failed(u, e);
+        return asynError;
     }
 }
 

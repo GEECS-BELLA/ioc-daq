@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cmath>
 
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
+
 namespace niusb {
 
 Device::Device(Bus &bus, std::string serial, const Firmware *fw) : bus_(bus), want_(std::move(serial)), fw_(fw) {}
@@ -23,12 +27,64 @@ void Device::close()
 {
     t_.reset();
     model_ = nullptr;
+    eeprom_.clear();
+    cal_ = {};
+    aoCal_.clear();
 }
+
+namespace {
+/* An exclusive flock held for a scope; a path that cannot be opened is no lock. */
+struct FileLock {
+    int fd = -1;
+    explicit FileLock(const std::string &path)
+    {
+        if (path.empty())
+            return;
+        fd = ::open(path.c_str(), O_RDONLY);
+        if (fd >= 0 && ::flock(fd, LOCK_EX) != 0) {
+            ::close(fd);
+            fd = -1;
+        }
+    }
+    ~FileLock()
+    {
+        if (fd >= 0) {
+            ::flock(fd, LOCK_UN);
+            ::close(fd);
+        }
+    }
+};
+} // namespace
 
 void Device::open()
 {
     close();
+    fresh_ = false;
+    try {
+        openUnlocked();
+    } catch (...) {
+        close();  // never left open half way: no transport without its calibration
+        throw;
+    }
+}
+
+void Device::openUnlocked()
+{
     std::vector<UnitInfo> units = bus_.list();
+    for (const UnitInfo &u : units)
+        if (modelByPid(u.pid) && (want_.empty() || u.serial == want_)) {
+            attach(u, false);
+            return;
+        }
+    bool anyBlank = false;
+    for (const UnitInfo &u : units)
+        anyBlank = anyBlank || u.pid == PID_BLANK;
+    if (!anyBlank)
+        throw Error("no NI USB-621x" + (want_.empty() ? std::string() : " with serial " + want_) + " found");
+    // Load blank units under the host-wide lock, listing again once held:
+    // another IOC may have loaded one meanwhile (perhaps ours).
+    FileLock lock(loadLock);
+    units = bus_.list();
     for (const UnitInfo &u : units)
         if (modelByPid(u.pid) && (want_.empty() || u.serial == want_)) {
             attach(u, false);
@@ -43,8 +99,10 @@ void Device::open()
         loadFx2(u);
         UnitInfo l = waitLoaded(u);
         attach(l, true);
-        if (want_.empty() || l.serial == want_)
+        if (want_.empty() || l.serial == want_) {
+            fresh_ = true;
             return;
+        }
         seen += " " + l.serial;
         close();  // another IOC's unit: it stays loaded and brought up for it
     }
@@ -274,6 +332,9 @@ std::vector<int16_t> Device::aiTimedCodes(const std::vector<int> &chans, double 
     double div = std::round(TIMEBASE / rate);
     if (n < 1 || !(div >= 1) || div > 0xFFFFFFFF)
         throw Error("timed AI: bad timing, rate " + std::to_string(rate) + " Hz, " + std::to_string(n) + " samples");
+    if (TIMEBASE / div * chans.size() > MAX_AI_RATE)
+        throw Error("timed AI: " + std::to_string(chans.size()) + " channels at " + std::to_string(TIMEBASE / div) +
+                    " Hz exceed the 621x's 250 kS/s aggregate");
     for (const Bytes &m : aiSetup(chans, range, mode, uint32_t(div), n))
         check(m);
     size_t want = size_t(2) * n * chans.size();

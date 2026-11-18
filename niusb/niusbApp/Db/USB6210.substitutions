@@ -26,21 +26,21 @@ pattern
 file "/epics/support/niusb/db/niusbBi.template"
 {
 pattern
-{ N, MASK }
-{ 1, 0x1 }
-{ 2, 0x2 }
-{ 3, 0x4 }
-{ 4, 0x8 }
+{ N, LINE, MASK }
+{ 1, 0, 0x1 }
+{ 2, 1, 0x2 }
+{ 3, 2, 0x4 }
+{ 4, 3, 0x8 }
 }
 
 file "/epics/support/niusb/db/niusbBo.template"
 {
 pattern
-{ N, MASK }
-{ 1, 0x1 }
-{ 2, 0x2 }
-{ 3, 0x4 }
-{ 4, 0x8 }
+{ N, LINE, MASK }
+{ 1, 0, 0x1 }
+{ 2, 1, 0x2 }
+{ 3, 2, 0x4 }
+{ 4, 3, 0x8 }
 }
 
 file "/epics/support/niusb/db/niusbWaveDig.template" { pattern {} {} }

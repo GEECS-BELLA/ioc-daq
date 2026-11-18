@@ -91,6 +91,50 @@ int main()
     } catch (const Error &) {
         check("diff-channel-refused", true);
     }
+    check("fresh-after-blank-load", d6211.freshlyLoaded());
+    d6211.open();
+    check("not-fresh-on-reopen", !d6211.freshlyLoaded());
+    try {
+        d6211.aiTimedCodes({0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 100000, 10, 10.0, Mode::RSE);
+        check("aggregate-rate-refused", false);
+    } catch (const Error &e) {
+        check("aggregate-rate-refused", true, e.what());
+    }
+
+    // A unit with its firmware loaded but not its FPGAs (a load stopped half
+    // way): without NI's firmware the open fails and nothing stays open;
+    // with it, the open brings the FPGAs up.
+    FakeBus bus2;
+    auto half = bus2.add(0x7270, "HALF", true);
+    half->fpga0 = half->fpga1 = false;
+    Device noFw(bus2, "HALF", nullptr);
+    try {
+        noFw.open();
+        check("half-loaded-no-firmware-refused", false);
+    } catch (const Error &e) {
+        check("half-loaded-no-firmware-refused", true, e.what());
+    }
+    check("failed-open-leaves-nothing-open", !noFw.isOpen());
+    try {
+        noFw.aiRead(3, 10.0, Mode::RSE);
+        check("no-reading-after-failed-open", false);
+    } catch (const Error &) {
+        check("no-reading-after-failed-open", true);
+    }
+    Device withFw(bus2, "HALF", &fw);
+    withFw.loadLock = "/dev/null";
+    withFw.open();
+    check("half-loaded-brought-up", half->fpga0 && half->fpga1 &&
+                                        std::fabs(withFw.aiRead(3, 10.0, Mode::RSE) - 0.3) < 1e-3);
+
+    // A blank unit loaded under the lock.
+    FakeBus bus3;
+    auto b3 = bus3.add(0x726F, "LOCKED", false);
+    Device locked(bus3, "LOCKED", &fw);
+    locked.loadLock = "/dev/null";
+    locked.open();
+    check("blank-load-under-lock", b3->loaded && locked.freshlyLoaded());
+
     std::cout << (failures ? "FAILED" : "PASSED") << "\n";
     return failures ? 1 : 0;
 }
