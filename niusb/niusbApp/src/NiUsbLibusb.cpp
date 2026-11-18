@@ -24,12 +24,16 @@ namespace {
 
 class LibusbTransport : public Transport {
 public:
-    LibusbTransport(libusb_device_handle *h, bool claimed) : h_(h), claimed_(claimed) {}
+    LibusbTransport(libusb_device_handle *h, bool claimed, int &live) : h_(h), claimed_(claimed), live_(live)
+    {
+        live_++;
+    }
     ~LibusbTransport() override
     {
         if (claimed_)
             libusb_release_interface(h_, 0);
         libusb_close(h_);
+        live_--;
     }
 
     void ctrlOut(uint8_t req, uint16_t value, uint16_t index, const Bytes &data, int timeoutMs) override
@@ -77,6 +81,7 @@ public:
 private:
     libusb_device_handle *h_;
     bool claimed_;
+    int &live_;
 };
 
 UnitInfo describe(libusb_device *dev, const libusb_device_descriptor &d)
@@ -126,11 +131,30 @@ LibusbBus::LibusbBus()
 
 LibusbBus::~LibusbBus()
 {
+    if (ctx_)
+        libusb_exit(ctx_);
+}
+
+void LibusbBus::refresh()
+{
     libusb_exit(ctx_);
+    ctx_ = nullptr;
+    int rc = libusb_init(&ctx_);
+    if (rc) {
+        ctx_ = nullptr;
+        throw TransportError(err("libusb_init", rc));
+    }
 }
 
 std::vector<UnitInfo> LibusbBus::list()
 {
+    // libusb keeps its device list from hotplug events, which come from
+    // udev; in a container without udev none arrive, so a unit unplugged,
+    // replugged or renumerated after its firmware load is never seen. A new
+    // context scans sysfs afresh: made whenever no unit is open (a list is
+    // taken only while looking for one).
+    if (live_ == 0 || !ctx_)
+        refresh();
     libusb_device **devs = nullptr;
     ssize_t n = libusb_get_device_list(ctx_, &devs);
     if (n < 0)
@@ -147,6 +171,8 @@ std::vector<UnitInfo> LibusbBus::list()
 
 std::unique_ptr<Transport> LibusbBus::open(const UnitInfo &unit)
 {
+    if (!ctx_)
+        refresh();
     libusb_device **devs = nullptr;
     ssize_t n = libusb_get_device_list(ctx_, &devs);
     if (n < 0)
@@ -170,7 +196,7 @@ std::unique_ptr<Transport> LibusbBus::open(const UnitInfo &unit)
     if (!h)
         throw TransportError(err("open", rc));
     if (unit.pid == PID_BLANK)  // the FX2 load needs only the default pipe
-        return std::make_unique<LibusbTransport>(h, false);
+        return std::make_unique<LibusbTransport>(h, false, live_);
     libusb_set_auto_detach_kernel_driver(h, 1);
     int cfg = 0;
     if (libusb_get_configuration(h, &cfg) == 0 && cfg == 0) {
@@ -186,7 +212,7 @@ std::unique_ptr<Transport> LibusbBus::open(const UnitInfo &unit)
         libusb_close(h);
         throw TransportError(err("claim", rc) + (rc == LIBUSB_ERROR_BUSY ? " (another process holds the unit)" : ""));
     }
-    return std::make_unique<LibusbTransport>(h, true);
+    return std::make_unique<LibusbTransport>(h, true, live_);
 }
 
 void LibusbBus::sleep(double seconds)

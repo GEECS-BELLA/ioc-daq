@@ -16,7 +16,9 @@ public:
     void sleep(double seconds) override;
 
 private:
+    void refresh();
     libusb_context *ctx_ = nullptr;
+    int live_ = 0;  // transports open on ctx_; it is renewed only at 0
 };
 
 } // namespace niusb
