@@ -34,6 +34,8 @@ struct UnitInfo {
 class Bus {
 public:
     virtual ~Bus() = default;
+    /* The units on the bus. Called only while no transport from open() is
+     * alive: the libusb bus renews its context here (see NiUsbLibusb.cpp). */
     virtual std::vector<UnitInfo> list() = 0;
     /* Open a unit. A loaded one gets its interface claimed (and a
      * configuration set only if it has none: a second SET_CONFIGURATION

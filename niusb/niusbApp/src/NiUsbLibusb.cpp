@@ -137,7 +137,8 @@ LibusbBus::~LibusbBus()
 
 void LibusbBus::refresh()
 {
-    libusb_exit(ctx_);
+    if (ctx_)
+        libusb_exit(ctx_);
     ctx_ = nullptr;
     int rc = libusb_init(&ctx_);
     if (rc) {
