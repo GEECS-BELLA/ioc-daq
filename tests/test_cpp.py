@@ -75,3 +75,52 @@ def test_firmware_sums(tools, tmp_path):
     assert "usb621x.cfg" in out.stdout
     assert hashlib.sha256(b"abc" * 9000).hexdigest() in out.stdout
     assert os.path.exists(src)
+
+
+# ------------------------------------------------------------------ USB-6008
+import replay6008  # noqa: E402
+
+
+def run_replay6008(tools, tmp_path, names, calls):
+    path = tmp_path / "script6008.txt"
+    path.write_text(replay6008.script(replay6008.fixture()["sections"], names, calls))
+    out = subprocess.run([os.path.join(tools, "niusb6008_replay"), str(path)], check=True, capture_output=True,
+                         text=True)
+    return out.stdout.splitlines()
+
+
+@pytest.mark.parametrize("case,names,calls", replay6008.CASES, ids=[c[0] for c in replay6008.CASES])
+def test_6008_requests_match_daqmx_and_python(tools, tmp_path, case, names, calls):
+    sections = replay6008.fixture()["sections"]
+    lines = run_replay6008(tools, tmp_path, names, calls)
+    assert not [x for x in lines if x.startswith("error")], lines
+    got = replay6008.requests(lines)
+    py, _ = replay6008.run_python(sections, names, calls)
+    assert got == py, "C++ and the Python reference differ"
+    assert got == replay6008.expected(sections, names)
+
+
+@pytest.mark.parametrize("case", ["open", "ao0", "ao1", "do", "diff-1V", "diff-20V", "timed-2ch", "di1"])
+def test_6008_results_match_python(tools, tmp_path, case):
+    _, names, calls = next(c for c in replay6008.CASES if c[0] == case)
+    sections = replay6008.fixture()["sections"]
+    lines = [x.split()[1:] for x in run_replay6008(tools, tmp_path, names, calls) if x.startswith("result")]
+    _, py = replay6008.run_python(sections, names, calls)
+    assert [x[0] for x in lines] == [r[0] for r in py]
+    for got, (kind, want) in zip(lines, py):
+        if kind == "open":
+            assert got[1] == want
+        elif kind == "ai":
+            assert [float(v) for v in got[1:]] == pytest.approx(want, abs=1e-9)
+        elif kind == "timed":
+            first = [want[i % len(want)][i // len(want)] for i in range(6)]  # interleaved
+            assert int(got[1]) == sum(len(ch) for ch in want)
+            assert [float(v) for v in got[2:]] == pytest.approx(first, abs=1e-9)
+        else:
+            assert int(got[1]) == want
+
+
+def test_6008_fake(tools):
+    out = subprocess.run([os.path.join(tools, "niusb6008_fake")], capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout
+    assert "FAIL" not in out.stdout

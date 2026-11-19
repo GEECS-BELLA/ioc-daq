@@ -13,7 +13,7 @@ pvlogging and autosave, plus:
 | calc | R3-7-5 | upstream ibek-support recipe (calcout records in measComp's databases) | tier 1, dependency |
 | measComp | master 9c8e01e (2026-07-13) | [epics-modules/measComp](https://github.com/epics-modules/measComp) (APS, Mark Rivers), our recipe `ibek-support-geecs/measComp/` | tier 1, dependency; no LICENSE file (below) |
 | uldaq | v1.2.2 (f87594f; it reports itself as 1.2.0, the IOC's `ULVersion`) | [mccdaq/uldaq](https://github.com/mccdaq/uldaq), MCC's UL for Linux, MIT, built from source by the measComp recipe | vendor, open source |
-| niusb | this repository (`niusb/`, recipe `ibek-support-geecs/niusb/`) | ours: NI USB-621x over libusb-1.0, from our decoding of the USB protocol; no NI code | written |
+| niusb | this repository (`niusb/`, recipe `ibek-support-geecs/niusb/`) | ours: NI USB-621x and USB-6008 over libusb-1.0, from our decoding of the USB protocol; no NI code | written |
 
 No epics-containers image or ibek-support recipe carries measComp (checked
 2026-10-30, GitHub code search included), hence this one. First device: an
@@ -113,8 +113,9 @@ From measComp 9c8e01e's `drvMultiFunction.cpp` and its templates:
 ### Testing without hardware
 
 measComp: none yet (measComp has no simulation mode). niusb: the entity's
-`simulate: true` runs the unit on the driver's fake ("NI USB-621x" below),
-and the CI instance (`tests/config/ioc.yaml`) checks its loopbacks.
+`simulate: true` runs the unit on the driver's fake ("NI USB-621x" and "NI
+USB-6008" below), and the CI instance (`tests/config/ioc.yaml`) checks its
+loopbacks.
 
 ## NI USB-621x
 
@@ -182,8 +183,8 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   blank. Records read INVALID meanwhile.
 - **Not done:** continuous (streaming) AI, hardware triggers and PFI
   routing, counters, timed AO, the other 621x models (6212, 6215, 6216,
-  6218: a line in the model table once a unit is in hand), the USB-6008/
-  6009 (a different protocol family).
+  6218: a line in the model table once a unit is in hand). The USB-6008 is
+  below.
 - **Tests.** `tests/fixtures/daqmx-621x.json` holds NI-DAQmx's traffic for
   the power-up and each kind of request, cut from the captures by
   `tools/cut_fixture.py` with NI's bytes replaced by their length and
@@ -197,6 +198,85 @@ driver (`niusb/niusbApp/src/`) reproduces its requests byte for byte.
   layer is exercised by CI's simulated 6211 and 6210 (`run-tests.sh`):
   Ao2 → Ai3, Bo1 → Bi1, a WaveDig scan, the models. `pytest tests/` needs
   only a C++17 compiler.
+
+## NI USB-6008
+
+The USB-6008 on the same module, `niusb` (`NiUsb6008.*`, `drvNiUsb6008.cpp`,
+the entity `niusb.USB6008`), with the 621x's record names so GEECS sees one
+DAQ family. The protocol was decoded from USB captures of NI-DAQmx 20 driving
+a USB-6008 (plug-in, reads, writes against loopbacks AO0→AI0, AO1→AI1,
+P1.0→P0.0); the Python reference is `python/ni6008.py`, and the C++ driver
+makes its requests byte for byte. Phases A and B passed on a USB-6008 from
+Linux (2026-11-18), with the Python reference and with the IOC over CA: AO
+codes identical to DAQmx's, AO→AI within 7.6 mV over 0-4.5 V, DO patterns
+exact, timed AI up to 10 kS/s × 2000.
+
+- **Protocol.** No firmware and no FX2: the unit enumerates ready as
+  `3923:717A` (full speed, interface 0, bulk ep01 out, ep81 and ep82 in). The
+  621x's framing with family byte 02: a kind-1 message gets one ep81 reply
+  (byte 11 the status), a kind-0 message asks for AI samples, which come on
+  ep82 as big-endian 16-bit words, the 12-bit code in the top 12 bits.
+  Subsystems: 00 AI timing, 02 AI channels, 03 AI data, 04 calibration
+  memory, 10 DIO, 21 AO. An on-demand read is one request for n samples; a
+  timed read sets a divisor of the 24 MHz clock and a count, starts with
+  `0a 02 00`, and NI-DAQmx polls (`13 02 03`, `10 02 03`) every 50 ms until
+  the samples are in, which the drivers repeat.
+- **Calibration.** At each open the driver reads the unit's 512-byte
+  calibration memory (32 bytes at a time) and nothing else: no AO write, no
+  DIO direction, so an IOC restart leaves the outputs as they are (NI-DAQmx
+  zeroes both AOs and resets the DIO directions at plug-in; the driver does
+  not). The memory holds, per range, the volts at the low and the high end:
+  DIFF on eight ranges × AI0-3 from 0x10, RSE ±10 V × AI0-7 from 0x110,
+  AO0 and AO1 at 0x150 and 0x158; the unit's serial is at 0x1FC.
+- **Scaling, against NI-DAQmx's own volts** (`tests/test_python.py`):
+  DIFF `lo + (word + 0.5)·(hi − lo)/65536` matches DAQmx within 0.5 µV (9
+  values on ±20, ±5 and ±1 V; AI0 only). RSE `hi + (int16(word) + 0.5)·
+  (hi − lo)/32768` is within 3.5 mV of DAQmx (56 values on AI0, AI1, AI7,
+  0 to 4.5 V): DAQmx's RSE line is exactly linear in the word but its ends
+  are not the memory's pair; the formula behind it is not recovered (a third
+  of an RSE step, 10 mV). AO: `round((V − lo)/(hi − lo)·4095)`, V clamped to
+  0..5 V, equals the code DAQmx sent in all 10 writes, AO1's 0 V as −5.
+- **DO.** A write to P1 reads P1 first and keeps the lines outside its mask
+  as they read; the first write after an open latches P1's state and makes
+  P1.0-3 outputs (P0 stays input), as NI-DAQmx did. An undriven line reads
+  high (the 6008's pull-ups), so after a power-up `Bo*_RBV` read 1 and the
+  first masked write drives the other lines high, where they already read.
+- **Records** (`Db/USB6008.substitutions`): `Ai1`-`Ai8` (on demand, `SCAN`
+  1 s; `Ai<n>Range` ±20, 10, 5, 4, 2.5, 2, 1.25, 1 V, default ±10;
+  `Ai<n>Mode` RSE or DIFF; `Ai<n>Average`). RSE is ±10 V only; DIFF is
+  AI0-3, each against AI n+4; anything else is refused into `LastError`.
+  In RSE the Range record is ignored (RSE is always ±10 V), so switching a
+  DIFF channel back to RSE needs no Range change.
+  `Ao1`-`Ao2` (0..5 V, `PINI` NO, read 0 until written), `Bi1`-`Bi8`
+  (P0.0-7), `Bo1`-`Bo4` (P1.0-3, `PINI` NO) with `Bo<n>_RBV`, the
+  `WaveDig` scan (`Dwell` 0.1 to 2.73 ms on the 24 MHz clock, 10 kS/s
+  aggregate, `WaveDig1`-`8`), and `Model`, `SerialNumber`, `Connected`,
+  `LastError` (and `Firmware`, which says none is needed).
+- **Reconnects** as the 621x: a USB error closes the unit, the next request
+  reopens it at most every 5 s, and the libusb bus takes a new context for
+  each scan while no unit is open.
+- **Not done:** continuous AI, triggers, the counter, timed AO, P0 as
+  output, timed AI below 367 Hz (a clock divisor beyond 16 bits: the
+  captures show 16 bits in a 32-bit field, so the drivers refuse rather
+  than guess), several ranges in one scan, and the USB-6009 (likely the
+  same protocol at 14 bits; no unit in hand).
+- **Proven on the bench too** (2026-11-18): a replug while the IOC ran
+  (serving again 11 s after the pull), a `docker kill` during a timed scan
+  followed by a restart with no replug (connected in 5 s, AI and a scan
+  fine), and a 7.5 h soak over CA (8,255 cycles of AO → AI, DO patterns and
+  scans; no IOC failure: the replug, and one AO readback 15 mV off, about 3
+  counts of RSE ±10 V).
+- **Tests.** `tests/fixtures/daqmx-6008.json` holds NI-DAQmx's traffic for
+  each probe step and its calibration read at plug-in (the unit's data, not
+  NI code), cut by `tools/cut_fixture_6008.py` with only the volts DAQmx
+  returned from the probe logs; the counter step is dropped. In the replay
+  (`tests/replay6008.py`) a reply is due only after as many messages as
+  preceded it in the capture, so the open's drain and the timed read's
+  polls come out as NI-DAQmx's. Both drivers send the fixture's messages
+  for every step (P0 as output is not replayed), the C++ results equal the
+  Python ones, and the C++ driver runs against the fake (loopbacks,
+  refusals, unplug and replug, an open that writes nothing). CI's simulated
+  6008 (`run-tests.sh`): Ao1 → Ai1, Bo1 → Bi1, a WaveDig scan, the model.
 
 ## Build
 

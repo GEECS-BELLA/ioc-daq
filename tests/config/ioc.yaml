@@ -43,8 +43,24 @@ entities:
     model: USB6210
     simulate: true
 
+  # and a USB-6008 on its fake: AO0 -> AI0 (Ao1 -> Ai1), P1.0 -> P0.0 (Bo1 -> Bi1;
+  # 0, since an undriven line reads high)
+  - type: niusb.USB6008
+    name: NI3
+    P: "NITEST3:"
+    simulate: true
+
   - type: epics.PostStartupCommand
     command: |
+      # let iocInit's PINI writes finish first: without this wait, on a slow
+      # runner, the WaveDig puts below were seen not to reach the driver
+      # (WaveDig3 empty, NumChans showing 3); the exact path is not traced
+      epicsThreadSleep 3
+      dbpf NITEST3:Ao1 2.5
+      dbpf NITEST3:Bo1 0
+      dbpf NITEST3:WaveDigNumChans 2
+      dbpf NITEST3:WaveDigNumPoints 100
+      dbpf NITEST3:WaveDigRun 1
       dbpf NITEST:Ao2 2.5
       dbpf NITEST:Bo1 1
       dbpf NITEST:WaveDigNumChans 3
@@ -57,3 +73,7 @@ entities:
       dbgf NITEST:WaveDig3
       dbgf NITEST2:Model
       dbgf NITEST2:Ai4
+      dbgf NITEST3:Ai1
+      dbgf NITEST3:Bi1
+      dbgf NITEST3:Model
+      dbgf NITEST3:WaveDig1

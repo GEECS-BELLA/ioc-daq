@@ -1,0 +1,105 @@
+# The USB-6008's finite hardware-timed scan, as niusbWaveDig.template (the
+# 621x's) but on the 24 MHz clock (Dwell 0.1 ms to 2.73 ms: a 16-bit divisor),
+# 10 kS/s aggregate, channels 0-7 (RSE) or 0-3 (DIFF), and the 6008's ranges
+# and modes. Writing 1 to WaveDigRun takes one scan; the
+# record returns to Done when the arrays have arrived, or when the scan was
+# refused or failed: WaveDigOK says which (MAJOR after a scan that did not
+# run, the reason in LastError).
+# P, PORT, MAX_POINTS
+record(longout, "$(P)WaveDigNumPoints") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0)WD_NUM_POINTS")
+    field(VAL,  "1000")
+    field(DRVL, "1")
+    field(DRVH, "$(MAX_POINTS)")
+    field(PINI, "YES")
+}
+record(longout, "$(P)WaveDigFirstChan") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0)WD_FIRST_CHAN")
+    field(VAL,  "0")
+    field(DRVL, "0")
+    field(DRVH, "7")
+    field(PINI, "YES")
+}
+record(longout, "$(P)WaveDigNumChans") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0)WD_NUM_CHANS")
+    field(VAL,  "1")
+    field(DRVL, "1")
+    field(DRVH, "8")
+    field(PINI, "YES")
+}
+record(ao, "$(P)WaveDigDwell") {
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT),0)WD_DWELL")
+    field(VAL,  "0.001")
+    field(PREC, "7")
+    field(EGU,  "s")
+    field(DRVL, "1e-4")
+    field(DRVH, "0.00273")
+    field(PINI, "YES")
+}
+record(ai, "$(P)WaveDigDwellActual") {
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT),0)WD_DWELL_ACTUAL")
+    field(SCAN, "I/O Intr")
+    field(PREC, "8")
+    field(EGU,  "s")
+}
+record(mbbo, "$(P)WaveDigRange") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0)WD_RANGE")
+    field(ZRST, "+-20V")
+    field(ZRVL, "0")
+    field(ONST, "+-10V")
+    field(ONVL, "1")
+    field(TWST, "+-5V")
+    field(TWVL, "2")
+    field(THST, "+-4V")
+    field(THVL, "3")
+    field(FRST, "+-2.5V")
+    field(FRVL, "4")
+    field(FVST, "+-2V")
+    field(FVVL, "5")
+    field(SXST, "+-1.25V")
+    field(SXVL, "6")
+    field(SVST, "+-1V")
+    field(SVVL, "7")
+    field(VAL,  "1")
+    field(PINI, "YES")
+}
+record(mbbo, "$(P)WaveDigMode") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0)WD_MODE")
+    field(ZRST, "RSE")
+    field(ZRVL, "0")
+    field(ONST, "DIFF")
+    field(ONVL, "2")
+    field(PINI, "YES")
+}
+record(bo, "$(P)WaveDigRun") {
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT),0,60)WD_RUN")
+    field(ZNAM, "Done")
+    field(ONAM, "Acquire")
+    info(asyn:READBACK, "1")
+}
+record(bi, "$(P)WaveDigOK") {
+    field(DESC, "Last WaveDig scan ran")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT),0)WD_OK")
+    field(SCAN, "I/O Intr")
+    field(PINI, "YES")
+    field(ZNAM, "Failed")
+    field(ZSV,  "MAJOR")
+    field(ONAM, "OK")
+}
+record(waveform, "$(P)WaveDigTimeWF") {
+    field(DTYP, "asynFloat64ArrayIn")
+    field(INP,  "@asyn($(PORT),0)WD_TIME")
+    field(SCAN, "I/O Intr")
+    field(FTVL, "DOUBLE")
+    field(NELM, "$(MAX_POINTS)")
+    field(EGU,  "s")
+}

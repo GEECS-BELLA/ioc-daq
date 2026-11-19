@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=https://github.com/epics-containers/ibek/releases/download/3.0.1/ibek.support.schema.json
 
-# NI USB-621x multifunction DAQs over libusb, without NI's driver (README
-# "NI USB-621x"). One entity per unit: the port and the model's records.
+# NI USB-621x and USB-6008 multifunction DAQs over libusb, without NI's driver
+# (README "NI USB-621x", "NI USB-6008"). One entity per unit: the port and the
+# model's records.
 
 module: niusb
 
@@ -58,3 +59,45 @@ entity_models:
           # niUsb621xConfig(port, serial, fwDir, simulate, maxPoints)
           niUsb621xConfig("{{name}}", "{{serial}}", "{{fw_dir}}", "{% if simulate %}{{ 'USB-6210' if model == 'USB6210' else 'USB-6211' }}{% endif %}", {{max_points}})
           dbLoadTemplate("/epics/support/niusb/db/{{model}}.substitutions", "P={{P}},PORT={{name}},MAX_POINTS={{max_points}}")
+
+  - name: USB6008
+    description: |-
+      One NI USB-6008 as an asyn port with the 621x's record names: Ai1-8
+      (on demand; RSE +-10 V on AI0-7, or DIFF on AI0-3 with eight ranges),
+      Ao1-2 (0..5 V), Bi1-8 (P0), Bo1-4 (P1) with their readback, the
+      WaveDig finite timed scan (10 kS/s aggregate), and the unit's identity,
+      connection and last error. No firmware: the 6008 enumerates ready. The
+      open reads the unit's calibration only, so a restart leaves AO and DO
+      as they are.
+    parameters:
+      name:
+        type: id
+        description: |-
+          The asyn port name
+      serial:
+        type: str
+        description: |-
+          The unit's USB serial number (lsusb's iSerial, e.g. 019CDC74);
+          empty for the first 6008 found
+        default: ""
+      P:
+        type: str
+        description: |-
+          PV prefix, with its trailing colon
+      simulate:
+        type: bool
+        description: |-
+          Run on the fake (no hardware): AO0/AO1 looped back to AI0/AI1 and
+          P1.0-3 to P0.0-3, with a captured unit's calibration
+        default: false
+      max_points:
+        type: int
+        description: |-
+          WaveDig points per channel at most (the arrays' size)
+        default: 16384
+
+    pre_init:
+      - value: |
+          # niUsb6008Config(port, serial, simulate, maxPoints)
+          niUsb6008Config("{{name}}", "{{serial}}", {{ 1 if simulate else 0 }}, {{max_points}})
+          dbLoadTemplate("/epics/support/niusb/db/USB6008.substitutions", "P={{P}},PORT={{name}},MAX_POINTS={{max_points}}")

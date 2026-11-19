@@ -60,6 +60,22 @@ elif ! echo "${result}" | grep -A1 "dbgf NITEST2:Model" | grep -q "USB-6210" ||
     exit 1
 fi
 
+# the NI USB-6008 on its fake: Ao1 -> Ai1 (RSE, 10 mV steps), Bo1 0 -> Bi1
+# Low (an undriven line reads High), a WaveDig scan, the model
+if ! echo "${result}" | grep -A1 "dbgf NITEST3:Ai1" | grep -Eq "DBF_DOUBLE: *2\.(49|50)"; then
+    echo "ERROR: the NI USB-6008 fake's Ao1 -> Ai1 not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST3:Model" | grep -q "USB-6008"; then
+    echo "ERROR: the NI USB-6008 fake's model not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST3:Bi1" | grep -q "\"Low\""; then
+    echo "ERROR: the NI USB-6008 fake's Bo1 -> Bi1 not as expected"
+    exit 1
+elif ! echo "${result}" | grep -A1 "dbgf NITEST3:WaveDig1" | grep -Eq "DBF_DOUBLE\[100\]: *2\.(49|50)"; then
+    echo "ERROR: the NI USB-6008 fake's timed scan (WaveDig1) not as expected"
+    exit 1
+fi
+
 # verify --test mode generates runtime assets but does not launch the IOC binary.
 # KUBERNETES_PORT is set as it is inside a pod (e.g. kodman on GitLab CI),
 # where start.sh would otherwise re-exec through stdio-socket.
