@@ -52,6 +52,10 @@ entities:
 
   - type: epics.PostStartupCommand
     command: |
+      # let iocInit's PINI writes finish first: a dbpf racing one is lost
+      # (the record shows the new value, the driver keeps the old), seen as
+      # an empty WaveDig on a slow runner
+      epicsThreadSleep 3
       dbpf NITEST3:Ao1 2.5
       dbpf NITEST3:Bo1 0
       dbpf NITEST3:WaveDigNumChans 2
