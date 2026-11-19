@@ -260,8 +260,12 @@ exact, timed AI up to 10 kS/s × 2000.
   captures show 16 bits in a 32-bit field, so the drivers refuse rather
   than guess), several ranges in one scan, and the USB-6009 (likely the
   same protocol at 14 bits; no unit in hand).
-- **Owed on the bench:** the overnight soak, and a replug while the IOC
-  runs.
+- **Proven on the bench too** (2026-11-18): a replug while the IOC ran
+  (serving again 11 s after the pull), a `docker kill` during a timed scan
+  followed by a restart with no replug (connected in 5 s, AI and a scan
+  fine), and a 7.5 h soak over CA (8,255 cycles of AO → AI, DO patterns and
+  scans; no IOC failure: the replug, and one AO readback 15 mV off, about 3
+  counts of RSE ±10 V).
 - **Tests.** `tests/fixtures/daqmx-6008.json` holds NI-DAQmx's traffic for
   each probe step and its calibration read at plug-in (the unit's data, not
   NI code), cut by `tools/cut_fixture_6008.py` with only the volts DAQmx
